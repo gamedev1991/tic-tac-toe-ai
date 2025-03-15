@@ -2,8 +2,7 @@
 
 A modern, responsive implementation of the classic Tic Tac Toe game built with Next.js and styled with Tailwind CSS. Play against a friend or challenge the AI in this beautifully designed web application.
 
-![Tic Tac Toe Game](https://your-screenshot-url.png) <!-- You can add a screenshot of your game here -->
-
+![Tic Tac Toe Game]
 ## Features
 
 - 🎮 Two Game Modes:
@@ -108,5 +107,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Your Name - [your@email.com](mailto:your@email.com)
-Project Link: [https://github.com/your-username/tic-tac-toe](https://github.com/your-username/tic-tac-toe)
+Your Name - Rahul Ohri(mailto:rahulohri2007@gmail.com)
+Project Link: [https://github.com/your-username/tic-tac-toe](https://github.com/gamedev1991/tic-tac-toe)
