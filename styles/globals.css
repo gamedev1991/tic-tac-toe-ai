@@ -1,0 +1,8 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom styles */
+.grid-cell {
+  @apply w-32 h-32 border-4 border-gray-800 bg-white text-6xl font-bold flex items-center justify-center hover:bg-gray-100;
+} 
