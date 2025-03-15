@@ -2,7 +2,7 @@
 
 A modern, responsive implementation of the classic Tic Tac Toe game built with Next.js and styled with Tailwind CSS. Play against a friend or challenge the AI in this beautifully designed web application.
 
-![Tic Tac Toe Game](https://your-screenshot-url.png) <!-- You can add a screenshot of your game here -->
+![Tic Tac Toe Game]
 
 ## Features
 
@@ -37,28 +37,28 @@ A modern, responsive implementation of the classic Tic Tac Toe game built with N
 ### Installation
 
 1. Clone the repository:
-\`\`\`bash
-git clone https://github.com/your-username/tic-tac-toe.git
-\`\`\`
+```bash
+git clone https://github.com/gamedev1991/tic-tac-toe-ai.git
+```
 
 2. Navigate to the project directory:
-\`\`\`bash
-cd tic-tac-toe
-\`\`\`
+```bash
+cd tic-tac-toe-ai
+```
 
 3. Install dependencies:
-\`\`\`bash
+```bash
 npm install
 # or
 yarn install
-\`\`\`
+```
 
 4. Run the development server:
-\`\`\`bash
+```bash
 npm run dev
 # or
 yarn dev
-\`\`\`
+```
 
 5. Open [http://localhost:3000](http://localhost:3000) in your browser to play the game.
 
@@ -78,7 +78,7 @@ The AI opponent uses the Minimax algorithm to make decisions:
 
 ## Project Structure
 
-\`\`\`
+```
 tic-tac-toe/
 ├── components/     # React components
 ├── context/       # Game state management
@@ -86,7 +86,7 @@ tic-tac-toe/
 ├── public/        # Static assets
 ├── styles/        # Global styles
 └── package.json   # Project dependencies
-\`\`\`
+```
 
 ## Contributing
 
@@ -108,5 +108,5 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 
 ## Contact
 
-Your Name - [your@email.com](mailto:your@email.com)
-Project Link: [https://github.com/your-username/tic-tac-toe](https://github.com/your-username/tic-tac-toe) 
+Rahul Ohri - [rahulohri2007@gmail.com](mailto:rahulohri2007@gmail.com)
+Project Link: [https://github.com/gamedev1991/tic-tac-toe-ai](https://github.com/gamedev1991/tic-tac-toe-ai)
