@@ -1,11 +1,14 @@
-import '../styles/globals.css'
 import { GameProvider } from '../context/GameContext'
+import { SocketProvider } from '../context/SocketContext'
+import '../styles/globals.css'
 
 function MyApp({ Component, pageProps }) {
   return (
-    <GameProvider>
-      <Component {...pageProps} />
-    </GameProvider>
+    <SocketProvider>
+      <GameProvider>
+        <Component {...pageProps} />
+      </GameProvider>
+    </SocketProvider>
   )
 }
 

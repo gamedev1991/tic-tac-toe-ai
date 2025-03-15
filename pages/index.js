@@ -1,121 +1,172 @@
-import { useContext, useState, useEffect } from 'react'
+import { useContext, useState, useCallback } from 'react'
 import { GameContext } from '../context/GameContext'
+import { SocketContext } from '../context/SocketContext'
 import Confetti from 'react-confetti'
+import Board from '../components/Board'
+import styles from '../styles/Home.module.css'
+
+const GAME_MODES = {
+  MENU: 'menu',
+  AI: 'ai',
+  ONLINE: 'online'
+}
 
 export default function Home() {
-  const { board, currentPlayer, makeMove, resetGame, aiMove, winner, winningLine } = useContext(GameContext)
-  const [isAIMode, setIsAIMode] = useState(false)
-  const [gameStarted, setGameStarted] = useState(false)
+  const {
+    board,
+    currentPlayer,
+    winner,
+    winningLine,
+    makeMove,
+    startNewGame,
+    isAIMode,
+    isProcessing
+  } = useContext(GameContext)
 
-  useEffect(() => {
-    if (isAIMode && currentPlayer === 'O' && !winner) {
-      aiMove()
+  const {
+    roomId,
+    players,
+    isYourTurn,
+    createGame,
+    joinGame,
+    resetGameState,
+    isConnected
+  } = useContext(SocketContext)
+
+  const [gameMode, setGameMode] = useState(GAME_MODES.MENU)
+  const [joinRoomId, setJoinRoomId] = useState('')
+  const [isJoining, setIsJoining] = useState(false)
+
+  const handleModeSelect = useCallback((mode) => {
+    if (mode === GAME_MODES.AI) {
+      resetGameState()
+      startNewGame(true)
+    } else if (mode === GAME_MODES.ONLINE) {
+      startNewGame(false)
     }
-  }, [board, currentPlayer, isAIMode, winner])
+    setGameMode(mode)
+  }, [resetGameState, startNewGame])
 
-  const handleMove = (index) => {
-    if (winner || board[index]) return
-    makeMove(index)
-  }
+  const handleJoinGame = useCallback((e) => {
+    e.preventDefault()
+    if (!joinRoomId.trim()) return
+    
+    setIsJoining(true)
+    startNewGame(false)
+    joinGame(joinRoomId.trim())
+    setGameMode(GAME_MODES.ONLINE)
+  }, [joinRoomId, joinGame, startNewGame])
 
-  const startGame = (withAI) => {
-    setIsAIMode(withAI)
-    setGameStarted(true)
-    resetGame()
-  }
+  const handleCellClick = useCallback((index) => {
+    if (gameMode === GAME_MODES.AI) {
+      makeMove(index)
+    } else if (gameMode === GAME_MODES.ONLINE && isYourTurn) {
+      makeMove(index)
+    }
+  }, [gameMode, isYourTurn, makeMove])
 
-  const handleReset = () => {
-    setGameStarted(false)
-    resetGame()
-  }
+  const handleBackToMenu = useCallback(() => {
+    resetGameState()
+    startNewGame(false)
+    setGameMode(GAME_MODES.MENU)
+    setJoinRoomId('')
+    setIsJoining(false)
+  }, [resetGameState, startNewGame])
 
-  const calculateWinner = (squares) => {
-    const lines = [
-      [0, 1, 2], [3, 4, 5], [6, 7, 8],
-      [0, 3, 6], [1, 4, 7], [2, 5, 8],
-      [0, 4, 8], [2, 4, 6]
-    ]
-    for (let line of lines) {
-      const [a, b, c] = line
-      if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return { winner: squares[a], line: line }
+  const getStatusMessage = useCallback(() => {
+    if (winner) {
+      if (winner === 'draw') return 'Game Over - Draw!'
+      if (gameMode === GAME_MODES.AI) {
+        return winner === 'X' ? 'You Win!' : 'AI Wins!'
       }
+      return `Player ${winner} Wins!`
     }
-    return null
+
+    if (gameMode === GAME_MODES.ONLINE) {
+      if (!isConnected) return 'Connecting to server...'
+      if (players.length < 2) return 'Waiting for opponent...'
+      return isYourTurn ? 'Your turn' : "Opponent's turn"
+    }
+
+    if (gameMode === GAME_MODES.AI) {
+      return isProcessing ? 'AI is thinking...' : `Current player: ${currentPlayer}`
+    }
+
+    return ''
+  }, [winner, gameMode, isConnected, players, isYourTurn, currentPlayer, isProcessing])
+
+  if (gameMode === GAME_MODES.MENU) {
+    return (
+      <div className={styles.container}>
+        <h1 className={styles.title}>Tic Tac Toe</h1>
+        <div className={styles.menu}>
+          <button
+            className={styles.button}
+            onClick={() => handleModeSelect(GAME_MODES.AI)}
+          >
+            Play vs AI
+          </button>
+          <button
+            className={styles.button}
+            onClick={() => handleModeSelect(GAME_MODES.ONLINE)}
+          >
+            Create Online Game
+          </button>
+          <div className={styles.joinForm}>
+            <form onSubmit={handleJoinGame}>
+              <input
+                type="text"
+                value={joinRoomId}
+                onChange={(e) => setJoinRoomId(e.target.value)}
+                placeholder="Enter Room ID"
+                className={styles.input}
+                disabled={isJoining}
+              />
+              <button
+                type="submit"
+                className={styles.button}
+                disabled={!joinRoomId.trim() || isJoining}
+              >
+                {isJoining ? 'Joining...' : 'Join Game'}
+              </button>
+            </form>
+          </div>
+        </div>
+      </div>
+    )
   }
 
   return (
-    <div className="min-h-screen bg-gray-100 flex flex-col items-center justify-center p-4">
-      {winner && <Confetti />}
-      <div className="w-full max-w-[400px] mx-auto">
-        <h1 className="text-4xl font-bold text-center mb-8">Tic Tac Toe</h1>
-        
-        {!gameStarted ? (
-          <div className="flex flex-col gap-4 items-center">
-            <button
-              onClick={() => startGame(false)}
-              className="w-64 px-6 py-4 rounded-lg text-xl font-bold bg-blue-500 text-white hover:bg-blue-600 transition-colors"
-            >
-              Play vs Friend
-            </button>
-            <button
-              onClick={() => startGame(true)}
-              className="w-64 px-6 py-4 rounded-lg text-xl font-bold bg-green-500 text-white hover:bg-green-600 transition-colors"
-            >
-              Play vs AI
-            </button>
-          </div>
-        ) : (
-          <>
-            <div className="text-center mb-4">
-              <p className="text-xl font-semibold">
-                Mode: {isAIMode ? 'Playing vs AI' : 'Playing vs Friend'}
-              </p>
-            </div>
-            {winner ? (
-              <div className="text-center">
-                <h2 className="text-3xl font-bold mb-4">Winner: {winner}</h2>
-                <div className="flex gap-4 justify-center">
-                  <button
-                    onClick={handleReset}
-                    className="bg-blue-600 text-white px-6 py-3 rounded-lg text-xl font-bold hover:bg-blue-700"
-                  >
-                    New Game
-                  </button>
-                  <button
-                    onClick={() => startGame(isAIMode)}
-                    className="bg-green-600 text-white px-6 py-3 rounded-lg text-xl font-bold hover:bg-green-700"
-                  >
-                    Play Again
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <>
-                <div className="grid grid-cols-3 gap-3 mb-8 mx-auto">
-                  {board.map((value, index) => (
-                    <button
-                      key={index}
-                      onClick={() => handleMove(index)}
-                      className={`w-32 h-32 border-4 ${winningLine && winningLine.includes(index) ? 'border-green-500 bg-green-100' : 'border-gray-800'} bg-white text-6xl font-bold flex items-center justify-center hover:bg-gray-100`}
-                    >
-                      {value}
-                    </button>
-                  ))}
-                </div>
-                <div className="text-center">
-                  <p className="text-2xl font-bold mb-4">Current Player: {currentPlayer}</p>
-                  <button
-                    onClick={handleReset}
-                    className="bg-blue-600 text-white px-8 py-3 rounded-lg text-xl font-bold hover:bg-blue-700"
-                  >
-                    Back to Menu
-                  </button>
-                </div>
-              </>
-            )}
-          </>
+    <div className={styles.container}>
+      <h1 className={styles.title}>Tic Tac Toe</h1>
+      {gameMode === GAME_MODES.ONLINE && roomId && (
+        <div className={styles.roomInfo}>
+          Room ID: <span className={styles.roomId}>{roomId}</span>
+        </div>
+      )}
+      <div className={styles.status}>{getStatusMessage()}</div>
+      <Board
+        squares={board}
+        winningLine={winningLine}
+        onClick={handleCellClick}
+        disabled={
+          winner ||
+          isProcessing ||
+          (gameMode === GAME_MODES.ONLINE && (!isYourTurn || players.length < 2))
+        }
+      />
+      <div className={styles.controls}>
+        {winner && (
+          <button
+            className={styles.button}
+            onClick={() => startNewGame(gameMode === GAME_MODES.AI)}
+          >
+            Play Again
+          </button>
         )}
+        <button className={styles.button} onClick={handleBackToMenu}>
+          Back to Menu
+        </button>
       </div>
     </div>
   )

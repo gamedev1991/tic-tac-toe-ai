@@ -11,7 +11,8 @@
     "next": "latest",
     "react": "latest",
     "react-confetti": "^6.4.0",
-    "react-dom": "latest"
+    "react-dom": "latest",
+    "socket.io-client": "^4.8.1"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.14",
