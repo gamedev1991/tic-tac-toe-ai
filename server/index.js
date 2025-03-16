@@ -51,7 +51,7 @@ io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
 
   // Create a new game room
-  socket.on('createGame', () => {
+  socket.on('game:create', () => {
     try {
       const roomId = generateRoomId();
       console.log('Creating game room:', roomId);
@@ -68,33 +68,43 @@ io.on('connection', (socket) => {
       games.set(roomId, gameState);
       socket.join(roomId);
       
-      console.log('Emitting gameCreated:', { roomId });
-      socket.emit('gameCreated', { 
-        roomId,
-        board: gameState.board,
-        currentPlayer: gameState.currentPlayer
-      });
+      console.log('Emitting game:created with roomId:', roomId);
+      socket.emit('game:created', roomId);
     } catch (error) {
       console.error('Error creating game:', error);
       socket.emit('error', { message: 'Failed to create game' });
     }
   });
 
+  // Handle manual game leave
+  socket.on('leaveGame', (roomId) => {
+    console.log('Player leaving game:', { roomId, socketId: socket.id });
+    const game = games.get(roomId);
+    if (game) {
+      // Notify other players in the room
+      socket.to(roomId).emit('playerLeft');
+      // Leave the socket room
+      socket.leave(roomId);
+      // Delete the game
+      games.delete(roomId);
+    }
+  });
+
   // Join an existing game
-  socket.on('joinGame', (roomId) => {
+  socket.on('game:join', (roomId) => {
     try {
       console.log('Join attempt:', { roomId, socketId: socket.id });
       const game = games.get(roomId);
       
       if (!game) {
         console.log('Game not found:', roomId);
-        socket.emit('joinError', { message: 'Game not found' });
+        socket.emit('error', { message: 'Game not found' });
         return;
       }
       
       if (game.players.length >= 2) {
         console.log('Game full:', roomId);
-        socket.emit('joinError', { message: 'Game is full' });
+        socket.emit('error', { message: 'Game is full' });
         return;
       }
 
@@ -102,23 +112,17 @@ io.on('connection', (socket) => {
       socket.join(roomId);
       console.log('Player joined successfully:', { roomId, players: game.players });
       
-      // Notify all players in the room
+      socket.emit('game:joined', roomId);
+      
+      // Notify all players in the room that the game has started
       io.to(roomId).emit('gameStarted', {
         board: game.board,
         currentPlayer: game.currentPlayer,
         players: game.players
       });
-
-      // Send confirmation to the joining player
-      socket.emit('joinSuccess', {
-        roomId,
-        players: game.players,
-        board: game.board,
-        currentPlayer: game.currentPlayer
-      });
     } catch (error) {
       console.error('Error joining game:', error);
-      socket.emit('joinError', { message: 'Failed to join game' });
+      socket.emit('error', { message: 'Failed to join game' });
     }
   });
 
@@ -225,7 +229,8 @@ io.on('connection', (socket) => {
       game.winningLine = null;
       io.to(roomId).emit('gameReset', {
         board: game.board,
-        currentPlayer: game.currentPlayer
+        currentPlayer: game.currentPlayer,
+        players: game.players
       });
     }
   });

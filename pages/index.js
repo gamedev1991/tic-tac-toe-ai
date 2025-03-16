@@ -1,173 +1,207 @@
-import { useContext, useState, useCallback } from 'react'
+import { useContext, useEffect, useState } from 'react'
 import { GameContext } from '../context/GameContext'
 import { SocketContext } from '../context/SocketContext'
-import Confetti from 'react-confetti'
 import Board from '../components/Board'
 import styles from '../styles/Home.module.css'
+import Confetti from 'react-confetti'
 
-const GAME_MODES = {
-  MENU: 'menu',
-  AI: 'ai',
-  ONLINE: 'online'
-}
+const MENU = 'MENU'
+const AI = 'AI'
+const ONLINE = 'ONLINE'
 
 export default function Home() {
-  const {
-    board,
-    currentPlayer,
-    winner,
-    winningLine,
-    makeMove,
+  const { 
+    isAIMode, 
+    setIsAIMode, 
+    currentPlayer, 
+    winner: aiWinner, 
+    resetGame: resetAIGame, 
     startNewGame,
-    isAIMode,
-    isProcessing
+    board: aiBoard,
+    makeMove: aiMove,
+    winningLine: aiWinningLine
   } = useContext(GameContext)
-
-  const {
-    roomId,
-    players,
+  const { 
+    createGame, 
+    joinGame, 
+    roomId, 
+    isHost, 
+    connected, 
     isYourTurn,
-    createGame,
-    joinGame,
-    resetGameState,
-    isConnected
+    makeMove: onlineMove,
+    board: onlineBoard,
+    winner: onlineWinner,
+    winningLine: onlineWinningLine,
+    resetGame: resetOnlineGame,
+    leaveGame
   } = useContext(SocketContext)
-
-  const [gameMode, setGameMode] = useState(GAME_MODES.MENU)
   const [joinRoomId, setJoinRoomId] = useState('')
-  const [isJoining, setIsJoining] = useState(false)
+  const [mode, setMode] = useState(MENU)
+  const [windowSize, setWindowSize] = useState({
+    width: typeof window !== 'undefined' ? window.innerWidth : 0,
+    height: typeof window !== 'undefined' ? window.innerHeight : 0
+  })
 
-  const handleModeSelect = useCallback((mode) => {
-    if (mode === GAME_MODES.AI) {
-      resetGameState()
+  // Determine which board and winner to use based on mode
+  const currentBoard = mode === ONLINE ? onlineBoard : aiBoard
+  const currentWinner = mode === ONLINE ? onlineWinner : aiWinner
+  const currentWinningLine = mode === ONLINE ? onlineWinningLine : aiWinningLine
+
+  // Check if game is over (either someone won or it's a draw)
+  const isGameOver = Boolean(currentWinner) || currentBoard.every(cell => cell !== null)
+
+  useEffect(() => {
+    const handleResize = () => {
+      setWindowSize({
+        width: window.innerWidth,
+        height: window.innerHeight
+      })
+    }
+
+    window.addEventListener('resize', handleResize)
+    return () => window.removeEventListener('resize', handleResize)
+  }, [])
+
+  const handleCopyRoomId = () => {
+    navigator.clipboard.writeText(roomId)
+    alert('Room ID copied to clipboard!')
+  }
+
+  const handleModeSelect = (selectedMode) => {
+    setMode(selectedMode)
+    if (selectedMode === AI) {
       startNewGame(true)
-    } else if (mode === GAME_MODES.ONLINE) {
+    } else if (selectedMode === ONLINE) {
       startNewGame(false)
     }
-    setGameMode(mode)
-  }, [resetGameState, startNewGame])
+  }
 
-  const handleJoinGame = useCallback((e) => {
-    e.preventDefault()
-    if (!joinRoomId.trim()) return
-    
-    setIsJoining(true)
-    startNewGame(false)
-    joinGame(joinRoomId.trim())
-    setGameMode(GAME_MODES.ONLINE)
-  }, [joinRoomId, joinGame, startNewGame])
-
-  const handleCellClick = useCallback((index) => {
-    if (gameMode === GAME_MODES.AI) {
-      makeMove(index)
-    } else if (gameMode === GAME_MODES.ONLINE && isYourTurn) {
-      makeMove(index)
+  const handleMove = (index) => {
+    if (mode === ONLINE) {
+      if (!isYourTurn || onlineWinner) return
+      onlineMove(index)
+    } else {
+      if (aiWinner) return
+      aiMove(index)
     }
-  }, [gameMode, isYourTurn, makeMove])
+  }
 
-  const handleBackToMenu = useCallback(() => {
-    resetGameState()
-    startNewGame(false)
-    setGameMode(GAME_MODES.MENU)
+  const handleReset = () => {
+    if (mode === ONLINE) {
+      resetOnlineGame()
+    } else {
+      resetAIGame()
+    }
+  }
+
+  const handleBackToMenu = () => {
+    leaveGame()
+    setMode(MENU)
     setJoinRoomId('')
-    setIsJoining(false)
-  }, [resetGameState, startNewGame])
-
-  const getStatusMessage = useCallback(() => {
-    if (winner) {
-      if (winner === 'draw') return 'Game Over - Draw!'
-      if (gameMode === GAME_MODES.AI) {
-        return winner === 'X' ? 'You Win!' : 'AI Wins!'
-      }
-      return `Player ${winner} Wins!`
-    }
-
-    if (gameMode === GAME_MODES.ONLINE) {
-      if (!isConnected) return 'Connecting to server...'
-      if (players.length < 2) return 'Waiting for opponent...'
-      return isYourTurn ? 'Your turn' : "Opponent's turn"
-    }
-
-    if (gameMode === GAME_MODES.AI) {
-      return isProcessing ? 'AI is thinking...' : `Current player: ${currentPlayer}`
-    }
-
-    return ''
-  }, [winner, gameMode, isConnected, players, isYourTurn, currentPlayer, isProcessing])
-
-  if (gameMode === GAME_MODES.MENU) {
-    return (
-      <div className={styles.container}>
-        <h1 className={styles.title}>Tic Tac Toe</h1>
-        <div className={styles.menu}>
-          <button
-            className={styles.button}
-            onClick={() => handleModeSelect(GAME_MODES.AI)}
-          >
-            Play vs AI
-          </button>
-          <button
-            className={styles.button}
-            onClick={() => handleModeSelect(GAME_MODES.ONLINE)}
-          >
-            Create Online Game
-          </button>
-          <div className={styles.joinForm}>
-            <form onSubmit={handleJoinGame}>
-              <input
-                type="text"
-                value={joinRoomId}
-                onChange={(e) => setJoinRoomId(e.target.value)}
-                placeholder="Enter Room ID"
-                className={styles.input}
-                disabled={isJoining}
-              />
-              <button
-                type="submit"
-                className={styles.button}
-                disabled={!joinRoomId.trim() || isJoining}
-              >
-                {isJoining ? 'Joining...' : 'Join Game'}
-              </button>
-            </form>
-          </div>
-        </div>
-      </div>
-    )
   }
 
   return (
     <div className={styles.container}>
       <h1 className={styles.title}>Tic Tac Toe</h1>
-      {gameMode === GAME_MODES.ONLINE && roomId && (
-        <div className={styles.roomInfo}>
-          Room ID: <span className={styles.roomId}>{roomId}</span>
+
+      {currentWinner && (
+        <Confetti
+          width={windowSize.width}
+          height={windowSize.height}
+          recycle={false}
+          numberOfPieces={200}
+          gravity={0.3}
+        />
+      )}
+
+      {mode === MENU && (
+        <div className={styles.menu}>
+          <button className={styles.button} onClick={() => handleModeSelect(AI)}>
+            Play vs AI
+          </button>
+          <button 
+            className={styles.button} 
+            onClick={() => handleModeSelect(ONLINE)}
+            disabled={!connected}
+          >
+            Play Online {!connected && '(Connecting...)'}
+          </button>
         </div>
       )}
-      <div className={styles.status}>{getStatusMessage()}</div>
-      <Board
-        squares={board}
-        winningLine={winningLine}
-        onClick={handleCellClick}
-        disabled={
-          winner ||
-          isProcessing ||
-          (gameMode === GAME_MODES.ONLINE && (!isYourTurn || players.length < 2))
-        }
-      />
-      <div className={styles.controls}>
-        {winner && (
-          <button
-            className={styles.button}
-            onClick={() => startNewGame(gameMode === GAME_MODES.AI)}
-          >
-            Play Again
+
+      {mode === ONLINE && !roomId && (
+        <div className={styles.menu}>
+          <button className={styles.button} onClick={createGame}>
+            Create New Game
           </button>
-        )}
-        <button className={styles.button} onClick={handleBackToMenu}>
-          Back to Menu
-        </button>
-      </div>
+          <div className={styles.joinForm}>
+            <input
+              type="text"
+              className={styles.input}
+              placeholder="Enter Room ID"
+              value={joinRoomId}
+              onChange={(e) => setJoinRoomId(e.target.value)}
+            />
+            <button 
+              className={styles.button}
+              onClick={() => joinGame(joinRoomId)}
+              disabled={!joinRoomId}
+            >
+              Join Game
+            </button>
+          </div>
+          <button 
+            className={styles.button} 
+            onClick={() => setMode(MENU)}
+          >
+            Back to Menu
+          </button>
+        </div>
+      )}
+
+      {roomId && (
+        <div className={styles.roomInfo}>
+          <p>
+            Room ID: {roomId}
+            <button className={styles.copyButton} onClick={handleCopyRoomId}>
+              Copy
+            </button>
+          </p>
+          <p>You are {isHost ? 'X' : 'O'}</p>
+        </div>
+      )}
+
+      {(mode === AI || roomId) && (
+        <div className={styles.gameContainer}>
+          <div className={styles.gameContent}>
+            <div className={styles.status}>
+              {currentWinner
+                ? `Winner: ${currentWinner}`
+                : mode === ONLINE
+                ? isYourTurn
+                  ? "Your turn"
+                  : "Opponent's turn"
+                : `Current player: ${currentPlayer}`}
+            </div>
+            <Board 
+              squares={currentBoard} 
+              onClick={handleMove}
+              winningLine={currentWinningLine}
+            />
+            {isGameOver && (
+              <button className={styles.button} onClick={handleReset}>
+                Play Again
+              </button>
+            )}
+            <button 
+              className={styles.button} 
+              onClick={handleBackToMenu}
+            >
+              Back to Menu
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   )
 } 
