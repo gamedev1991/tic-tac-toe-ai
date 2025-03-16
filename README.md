@@ -1,31 +1,42 @@
-# Modern Tic Tac Toe Game
+# Tic Tac Toe Game
 
-A modern, responsive implementation of the classic Tic Tac Toe game built with Next.js and styled with Tailwind CSS. Play against a friend or challenge the AI in this beautifully designed web application.
-
-![Tic Tac Toe Game]
+A modern implementation of the classic Tic Tac Toe game with multiple game modes, including local multiplayer, AI opponent, and online multiplayer functionality.
 
 ## Features
 
-- 🎮 Two Game Modes:
-  - Player vs Player (PvP)
-  - Player vs AI
-- 🎯 Smart AI Opponent using the Minimax Algorithm
-- 🎨 Modern UI with Tailwind CSS
-- 🎉 Victory Celebration with Confetti Effect
-- 💫 Winning Line Highlight Animation
-- 📱 Fully Responsive Design
-- ⚡ Fast and Smooth Performance with Next.js
+- 🎮 Multiple Game Modes:
+  - Local 2-Player Mode
+  - AI Opponent (with different difficulty levels)
+  - Online Multiplayer Mode
 
-## Live Demo
+- 🎯 Game Features:
+  - Real-time game state updates
+  - Room creation and joining system
+  - Turn-based gameplay
+  - Win detection
+  - Game reset functionality
+  - Player disconnection handling
 
-[Play the game here](https://your-deployment-url.vercel.app) <!-- Add your deployment URL when available -->
+- 💅 UI/UX Features:
+  - Responsive design
+  - Status messages
+  - Turn indicators
+  - Room ID display
+  - Confetti effect on win
+  - Back to menu functionality
 
-## Technologies Used
+## Tech Stack
 
-- [Next.js](https://nextjs.org/) - React Framework
-- [Tailwind CSS](https://tailwindcss.com/) - Styling
-- [React Confetti](https://www.npmjs.com/package/react-confetti) - Victory Animation
-- React Context API - State Management
+- **Frontend:**
+  - Next.js
+  - React
+  - Tailwind CSS
+  - Socket.io-client
+
+- **Backend:**
+  - Node.js
+  - Socket.io
+  - Express
 
 ## Getting Started
 
@@ -37,76 +48,67 @@ A modern, responsive implementation of the classic Tic Tac Toe game built with N
 ### Installation
 
 1. Clone the repository:
-```bash
-git clone https://github.com/gamedev1991/tic-tac-toe-ai.git
-```
+   ```bash
+   git clone [repository-url]
+   cd TicTacToe
+   ```
 
-2. Navigate to the project directory:
-```bash
-cd tic-tac-toe-ai
-```
+2. Install frontend dependencies:
+   ```bash
+   npm install
+   # or
+   yarn install
+   ```
 
-3. Install dependencies:
-```bash
-npm install
-# or
-yarn install
-```
+3. Install backend dependencies:
+   ```bash
+   cd server
+   npm install
+   # or
+   yarn install
+   ```
 
-4. Run the development server:
-```bash
-npm run dev
-# or
-yarn dev
-```
+### Running the Application
 
-5. Open [http://localhost:3000](http://localhost:3000) in your browser to play the game.
+1. Start the backend server:
+   ```bash
+   cd server
+   npm run start
+   # or
+   yarn start
+   ```
 
-## Game Rules
+2. In a new terminal, start the frontend:
+   ```bash
+   npm run dev
+   # or
+   yarn dev
+   ```
 
-1. The game is played on a 3x3 grid
-2. Players take turns placing their marks (X or O)
-3. The first player to get 3 of their marks in a row (horizontally, vertically, or diagonally) wins
-4. If all squares are filled and no player has won, the game is a draw
+3. Open [http://localhost:3000](http://localhost:3000) in your browser.
 
-## AI Implementation
+## Game Modes
 
-The AI opponent uses the Minimax algorithm to make decisions:
-- Evaluates all possible moves
-- Considers future game states
-- Chooses the optimal move to either win or prevent the player from winning
+### Local 2-Player Mode
+- Play against a friend on the same device
+- Take turns clicking on the board to make moves
+- Winner is announced when a player gets three in a row
 
-## Project Structure
+### AI Mode
+- Play against the computer
+- Multiple difficulty levels available
+- AI uses minimax algorithm for optimal moves
 
-```
-tic-tac-toe/
-├── components/     # React components
-├── context/       # Game state management
-├── pages/         # Next.js pages
-├── public/        # Static assets
-├── styles/        # Global styles
-└── package.json   # Project dependencies
-```
+### Online Multiplayer Mode
+1. Create a new game room
+2. Share the room ID with your friend
+3. Friend joins using the room ID
+4. Play in real-time over the internet
 
 ## Contributing
 
-Contributions are welcome! Feel free to:
-1. Fork the repository
-2. Create a new branch
-3. Make your changes
-4. Submit a pull request
+Feel free to open issues and pull requests for any improvements you want to add.
 
 ## License
 
 This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
-
-## Acknowledgments
-
-- Inspired by the classic Tic Tac Toe game
-- Built with modern web technologies
-- Designed for learning and entertainment
-
-## Contact
-
-Rahul Ohri - [rahulohri2007@gmail.com](mailto:rahulohri2007@gmail.com)
-Project Link: [https://github.com/gamedev1991/tic-tac-toe-ai](https://github.com/gamedev1991/tic-tac-toe-ai)

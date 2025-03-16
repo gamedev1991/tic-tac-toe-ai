@@ -134,7 +134,7 @@ export function SocketProvider({ children }) {
     });
 
     return () => {
-      newSocket.close();
+      newSocket.disconnect();
     };
   }, [isHost]);
 
