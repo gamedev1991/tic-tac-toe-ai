@@ -1,36 +1,34 @@
-import React, { memo } from 'react';
+import React from 'react';
 import styles from '../styles/Board.module.css';
 
-const Board = memo(({ squares, onClick, winningLine }) => {
+const Board = ({ squares = Array(9).fill(null), onSquareClick = () => {}, winningLine = [], disabled = false }) => {
+  const renderSquare = (i) => {
+    const isWinning = winningLine && winningLine.includes(i);
+    return (
+      <div
+        key={i}
+        data-testid={`square-${i}`}
+        className={`${styles.square} ${isWinning ? styles.winning : ''}`}
+      >
+        <button
+          className={styles.squareButton}
+          onClick={() => onSquareClick(i)}
+          disabled={squares[i] !== null || disabled}
+          aria-label={`Square ${i}`}
+        >
+          <span className={`${styles.symbol} ${squares[i] === 'X' ? styles.x : styles.o}`}>
+            {squares[i]}
+          </span>
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div className={styles.board}>
-      {squares?.map((square, i) => {
-        const isWinningSquare = winningLine?.includes(i);
-        return (
-          <div
-            key={i}
-            className={`${styles.square} ${isWinningSquare ? styles.winning : ''}`}
-          >
-            <button
-              className={styles.squareButton}
-              onClick={() => onClick(i)}
-              disabled={square !== null || winningLine}
-            >
-              {square && (
-                <span 
-                  className={`${styles.symbol} ${square === 'X' ? styles.x : styles.o}`}
-                  data-testid={`square-${i}`}
-                >
-                  {square}
-                </span>
-              )}
-            </button>
-          </div>
-        );
-      })}
+      {Array(9).fill(null).map((_, i) => renderSquare(i))}
     </div>
   );
-});
+};
 
-Board.displayName = 'Board';
 export default Board; 

@@ -185,7 +185,7 @@ export default function Home() {
             </div>
             <Board 
               squares={currentBoard} 
-              onClick={handleMove}
+              onSquareClick={handleMove}
               winningLine={currentWinningLine}
             />
             {isGameOver && (
