@@ -50,3 +50,6 @@ Thumbs.db
 
 # Project specific
 project-status.md
+
+# server
+server/node_modules

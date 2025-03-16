@@ -1,65 +1,52 @@
 import { createContext, useContext, useEffect, useState, useCallback, useRef } from 'react';
 import io from 'socket.io-client';
 
-const SocketContext = createContext();
+export const SocketContext = createContext();
 
 const INITIAL_BOARD = Array(9).fill(null);
 
 export function SocketProvider({ children }) {
   const [socket, setSocket] = useState(null);
   const [roomId, setRoomId] = useState(null);
-  const [isConnected, setIsConnected] = useState(false);
+  const [isHost, setIsHost] = useState(false);
+  const [connected, setConnected] = useState(false);
   const [players, setPlayers] = useState([]);
   const [isYourTurn, setIsYourTurn] = useState(false);
   const [gameBoard, setGameBoard] = useState(INITIAL_BOARD);
   const [winner, setWinner] = useState(null);
   const [winningLine, setWinningLine] = useState(null);
   const socketRef = useRef(null);
-  const reconnectAttemptsRef = useRef(0);
-  const MAX_RECONNECT_ATTEMPTS = 5;
 
   useEffect(() => {
-    const SOCKET_URL = process.env.NEXT_PUBLIC_SOCKET_URL || 'http://localhost:3001';
-    
-    const newSocket = io(SOCKET_URL, {
-      transports: ['websocket'],
-      upgrade: false,
-      reconnection: true,
-      reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-      reconnectionDelay: 1000,
-      timeout: 10000
-    });
-
+    const newSocket = io('http://localhost:3001');
     socketRef.current = newSocket;
     
     newSocket.on('connect', () => {
-      setIsConnected(true);
+      setConnected(true);
+      console.log('Connected to server');
       setSocket(newSocket);
-      reconnectAttemptsRef.current = 0;
     });
 
-    newSocket.on('connect_error', () => {
-      setIsConnected(false);
-      if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
-        newSocket.close();
-      }
-      reconnectAttemptsRef.current += 1;
-    });
-
-    const resetState = () => {
-      setIsConnected(false);
+    newSocket.on('disconnect', () => {
+      setConnected(false);
+      console.log('Disconnected from server');
+      setSocket(null);
       setRoomId(null);
       setPlayers([]);
       setIsYourTurn(false);
       setGameBoard(INITIAL_BOARD);
       setWinner(null);
       setWinningLine(null);
-    };
+    });
 
-    newSocket.on('disconnect', resetState);
-
-    newSocket.on('gameCreated', ({ roomId }) => {
-      setRoomId(roomId);
+    newSocket.on('game:created', (data) => {
+      console.log('Game created:', data);
+      if (typeof data === 'string') {
+        setRoomId(data);
+      } else if (data && data.roomId) {
+        setRoomId(data.roomId);
+      }
+      setIsHost(true);
       setPlayers([newSocket.id]);
       setIsYourTurn(true);
       setGameBoard(INITIAL_BOARD);
@@ -67,16 +54,23 @@ export function SocketProvider({ children }) {
       setWinningLine(null);
     });
 
-    newSocket.on('joinSuccess', ({ roomId, players, board, currentPlayer }) => {
-      setRoomId(roomId);
-      setPlayers(players);
-      setGameBoard(board);
+    newSocket.on('game:joined', (data) => {
+      console.log('Game joined:', data);
+      if (typeof data === 'string') {
+        setRoomId(data);
+      } else if (data && data.roomId) {
+        setRoomId(data.roomId);
+      }
+      setIsHost(false);
+      setPlayers([newSocket.id]);
+      setIsYourTurn(false);
+      setGameBoard(INITIAL_BOARD);
       setWinner(null);
       setWinningLine(null);
-      setIsYourTurn(players[1] === newSocket.id && currentPlayer === 'O');
     });
 
     newSocket.on('gameStarted', ({ players, board, currentPlayer }) => {
+      console.log('Game started:', { players, board, currentPlayer });
       setPlayers(players);
       setGameBoard(board);
       const playerIndex = players.indexOf(newSocket.id);
@@ -87,35 +81,52 @@ export function SocketProvider({ children }) {
     });
 
     newSocket.on('moveMade', ({ board, currentPlayer, players }) => {
+      console.log('Move made:', { board, currentPlayer, players, myId: newSocket.id });
       setGameBoard(board);
-      if (socketRef.current && players) {
-        const playerIndex = players.indexOf(socketRef.current.id);
-        setPlayers(players);
-        setIsYourTurn(
-          (currentPlayer === 'X' && playerIndex === 0) ||
-          (currentPlayer === 'O' && playerIndex === 1)
-        );
-      }
+      const playerIndex = players.indexOf(newSocket.id);
+      setPlayers(players);
+      setIsYourTurn(
+        (currentPlayer === 'X' && playerIndex === 0) ||
+        (currentPlayer === 'O' && playerIndex === 1)
+      );
     });
 
     newSocket.on('gameOver', ({ board, winner, winningLine }) => {
+      console.log('Game over:', { board, winner, winningLine });
       setGameBoard(board);
       setWinner(winner);
       setWinningLine(winningLine);
       setIsYourTurn(false);
     });
 
-    newSocket.on('gameReset', ({ board }) => {
-      setGameBoard(board);
+    newSocket.on('gameReset', ({ board, currentPlayer, players: gamePlayers }) => {
+      console.log('Game reset:', { board, currentPlayer, players: gamePlayers });
+      setGameBoard(board || INITIAL_BOARD);
       setWinner(null);
       setWinningLine(null);
-      const playerIndex = players.indexOf(socketRef.current?.id);
-      setIsYourTurn(playerIndex === 0);
+      
+      if (gamePlayers) {
+        setPlayers(gamePlayers);
+        const playerIndex = gamePlayers.indexOf(newSocket.id);
+        setIsYourTurn(playerIndex === 0);
+      } else {
+        setIsYourTurn(isHost);
+      }
     });
 
     newSocket.on('playerDisconnected', () => {
       alert('Other player disconnected');
-      resetState();
+      setRoomId(null);
+      setPlayers([]);
+      setIsYourTurn(false);
+      setGameBoard(INITIAL_BOARD);
+      setWinner(null);
+      setWinningLine(null);
+    });
+
+    newSocket.on('playerLeft', () => {
+      alert('Opponent left the game');
+      resetGameState();
     });
 
     newSocket.on('error', ({ message }) => {
@@ -125,7 +136,7 @@ export function SocketProvider({ children }) {
     return () => {
       newSocket.close();
     };
-  }, []);
+  }, [isHost]);
 
   const resetGameState = useCallback(() => {
     setRoomId(null);
@@ -137,23 +148,22 @@ export function SocketProvider({ children }) {
   }, []);
 
   const createGame = useCallback(() => {
-    const currentSocket = socketRef.current;
-    if (!currentSocket?.connected) return;
-    resetGameState();
-    currentSocket.emit('createGame');
-  }, [resetGameState]);
+    if (socket) {
+      resetGameState();
+      socket.emit('game:create');
+    }
+  }, [resetGameState, socket]);
 
-  const joinGame = useCallback((roomIdToJoin) => {
-    const currentSocket = socketRef.current;
-    if (!currentSocket?.connected || !roomIdToJoin?.trim()) return;
-    resetGameState();
-    currentSocket.emit('joinGame', roomIdToJoin.trim());
-  }, [resetGameState]);
+  const joinGame = useCallback((gameId) => {
+    if (socket) {
+      resetGameState();
+      socket.emit('game:join', gameId);
+    }
+  }, [resetGameState, socket]);
 
   const makeMove = useCallback((index) => {
-    const currentSocket = socketRef.current;
     if (
-      !currentSocket?.connected || 
+      !socket || 
       !roomId || 
       !isYourTurn || 
       winner || 
@@ -165,21 +175,47 @@ export function SocketProvider({ children }) {
       return;
     }
 
-    currentSocket.emit('makeMove', { roomId, index });
-  }, [roomId, isYourTurn, winner, gameBoard]);
+    // Optimistically update the board
+    const newBoard = [...gameBoard];
+    newBoard[index] = isHost ? 'X' : 'O';
+    setGameBoard(newBoard);
+    setIsYourTurn(false);
+
+    socket.emit('makeMove', { roomId, index });
+  }, [roomId, isYourTurn, winner, gameBoard, socket, isHost]);
+
+  const resetGame = useCallback(() => {
+    if (socket && roomId) {
+      setGameBoard(INITIAL_BOARD);
+      setWinner(null);
+      setWinningLine(null);
+      
+      socket.emit('resetGame', roomId);
+    }
+  }, [socket, roomId]);
+
+  const leaveGame = useCallback(() => {
+    if (socket && roomId) {
+      socket.emit('leaveGame', roomId);
+      resetGameState();
+    }
+  }, [socket, roomId, resetGameState]);
 
   const value = {
     socket,
     roomId,
-    isConnected,
+    isHost,
+    connected,
     players,
     isYourTurn,
-    gameBoard,
+    board: gameBoard,
     winner,
     winningLine,
     createGame,
     joinGame,
     makeMove,
+    resetGame,
+    leaveGame
   };
 
   return (

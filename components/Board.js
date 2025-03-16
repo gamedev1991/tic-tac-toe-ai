@@ -1,34 +1,36 @@
-import { memo } from 'react'
-import styles from '../styles/Board.module.css'
+import React, { memo } from 'react';
+import styles from '../styles/Board.module.css';
 
-const Board = memo(({ squares, winningLine, onClick, disabled }) => {
-  const renderSquare = (index) => {
-    const isWinningSquare = winningLine?.includes(index)
-    const squareClassName = `${styles.square} ${
-      isWinningSquare ? styles.winning : ''
-    } ${disabled ? styles.disabled : ''}`
-
-    return (
-      <button
-        key={index}
-        className={squareClassName}
-        onClick={() => onClick(index)}
-        disabled={disabled || squares[index]}
-      >
-        <span className={squares[index] === 'X' ? styles.x : styles.o}>
-          {squares[index]}
-        </span>
-      </button>
-    )
-  }
-
+const Board = memo(({ squares, onClick, winningLine }) => {
   return (
     <div className={styles.board}>
-      {squares.map((_, index) => renderSquare(index))}
+      {squares?.map((square, i) => {
+        const isWinningSquare = winningLine?.includes(i);
+        return (
+          <div
+            key={i}
+            className={`${styles.square} ${isWinningSquare ? styles.winning : ''}`}
+          >
+            <button
+              className={styles.squareButton}
+              onClick={() => onClick(i)}
+              disabled={square !== null || winningLine}
+            >
+              {square && (
+                <span 
+                  className={`${styles.symbol} ${square === 'X' ? styles.x : styles.o}`}
+                  data-testid={`square-${i}`}
+                >
+                  {square}
+                </span>
+              )}
+            </button>
+          </div>
+        );
+      })}
     </div>
-  )
-})
+  );
+});
 
-Board.displayName = 'Board'
-
-export default Board 
+Board.displayName = 'Board';
+export default Board; 

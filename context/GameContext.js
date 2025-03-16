@@ -1,4 +1,4 @@
-import { createContext, useState, useEffect, useCallback } from 'react'
+import { createContext, useState, useCallback } from 'react'
 
 export const GameContext = createContext()
 
@@ -9,8 +9,6 @@ const WINNING_COMBINATIONS = [
   [0, 4, 8], [2, 4, 6] // diagonals
 ]
 
-const AI_MOVE_DELAY = 500
-
 export function GameProvider({ children }) {
   const [board, setBoard] = useState(INITIAL_BOARD)
   const [currentPlayer, setCurrentPlayer] = useState('X')
@@ -19,122 +17,123 @@ export function GameProvider({ children }) {
   const [isAIMode, setIsAIMode] = useState(false)
   const [isProcessing, setIsProcessing] = useState(false)
 
-  useEffect(() => {
-    if (isAIMode && currentPlayer === 'O' && !winner && !isProcessing) {
-      setIsProcessing(true)
-      const timer = setTimeout(() => {
-        aiMove()
-        setIsProcessing(false)
-      }, AI_MOVE_DELAY)
-      return () => clearTimeout(timer)
-    }
-  }, [currentPlayer, winner, isAIMode, isProcessing])
-
-  const calculateWinner = useCallback((squares) => {
-    for (const line of WINNING_COMBINATIONS) {
-      const [a, b, c] = line
+  const checkWinner = useCallback((squares) => {
+    for (const [a, b, c] of WINNING_COMBINATIONS) {
       if (squares[a] && squares[a] === squares[b] && squares[a] === squares[c]) {
-        return { winner: squares[a], line }
+        return { winner: squares[a], line: [a, b, c] };
       }
     }
-
     if (squares.every(square => square !== null)) {
-      return { winner: 'draw', line: null }
+      return { winner: 'draw', line: null };
     }
+    return null;
+  }, []);
 
-    return null
-  }, [])
-
-  const makeMove = useCallback((index) => {
-    if (
-      typeof index !== 'number' ||
-      index < 0 ||
-      index > 8 ||
-      board[index] ||
-      winner ||
-      isProcessing
-    ) {
-      return false
-    }
-
-    const newBoard = [...board]
-    newBoard[index] = currentPlayer
-    setBoard(newBoard)
-
-    const result = calculateWinner(newBoard)
-    if (result) {
-      setWinningLine(result.line)
-      setWinner(result.winner)
-      return true
-    }
-
-    setCurrentPlayer(currentPlayer === 'X' ? 'O' : 'X')
-    return true
-  }, [board, currentPlayer, winner, isProcessing, calculateWinner])
-
-  const evaluateBoard = useCallback((squares, depth) => {
-    const result = calculateWinner(squares)
+  const minimax = useCallback((board, player, depth = 0) => {
+    const result = checkWinner(board);
     
     if (result) {
-      if (result.winner === 'X') return -10 + depth
-      if (result.winner === 'O') return 10 - depth
-      if (result.winner === 'draw') return 0
+      if (result.winner === 'X') return -10 + depth;
+      if (result.winner === 'O') return 10 - depth;
+      return 0;
     }
-    return null
-  }, [calculateWinner])
 
-  const minimax = useCallback((squares, player, depth = 0, alpha = -Infinity, beta = Infinity) => {
-    const score = evaluateBoard(squares, depth)
-    if (score !== null) return { score }
-
-    const moves = []
-    const availableSpots = squares.reduce((acc, val, idx) => 
-      val === null ? acc.concat(idx) : acc, [])
-
-    for (let i = 0; i < availableSpots.length; i++) {
-      const move = { index: availableSpots[i] }
-      squares[availableSpots[i]] = player
-
-      if (player === 'O') {
-        const result = minimax(squares, 'X', depth + 1, alpha, beta)
-        move.score = result.score
-        alpha = Math.max(alpha, result.score)
-      } else {
-        const result = minimax(squares, 'O', depth + 1, alpha, beta)
-        move.score = result.score
-        beta = Math.min(beta, result.score)
+    if (player === 'O') {
+      let bestScore = -Infinity;
+      for (let i = 0; i < board.length; i++) {
+        if (board[i] === null) {
+          board[i] = 'O';
+          const score = minimax(board, 'X', depth + 1);
+          board[i] = null;
+          bestScore = Math.max(score, bestScore);
+        }
       }
+      return bestScore;
+    } else {
+      let bestScore = Infinity;
+      for (let i = 0; i < board.length; i++) {
+        if (board[i] === null) {
+          board[i] = 'X';
+          const score = minimax(board, 'O', depth + 1);
+          board[i] = null;
+          bestScore = Math.min(score, bestScore);
+        }
+      }
+      return bestScore;
+    }
+  }, [checkWinner]);
 
-      squares[availableSpots[i]] = null
-      moves.push(move)
+  const findBestMove = useCallback((board) => {
+    let bestScore = -Infinity;
+    let bestMove = null;
 
-      if (beta <= alpha) break
+    for (let i = 0; i < board.length; i++) {
+      if (board[i] === null) {
+        board[i] = 'O';
+        const score = minimax(board, 'X', 0);
+        board[i] = null;
+
+        if (score > bestScore) {
+          bestScore = score;
+          bestMove = i;
+        }
+      }
     }
 
-    const getBestMove = (moves, player) => {
-      const compare = (a, b) => player === 'O' ? b.score - a.score : a.score - b.score
-      return moves.sort(compare)[0]
+    return bestMove;
+  }, [minimax]);
+
+  const makeMove = useCallback((index) => {
+    if (board[index] || winner || isProcessing) return;
+
+    const newBoard = [...board];
+    newBoard[index] = currentPlayer;
+    setBoard(newBoard);
+
+    const result = checkWinner(newBoard);
+    if (result) {
+      setWinner(result.winner);
+      setWinningLine(result.line);
+      return;
     }
 
-    return getBestMove(moves, player)
-  }, [evaluateBoard])
+    if (isAIMode && currentPlayer === 'X') {
+      setIsProcessing(true);
+      setCurrentPlayer('O');
+      
+      setTimeout(() => {
+        const aiMove = findBestMove([...newBoard]);
+        if (aiMove !== null) {
+          const aiBoard = [...newBoard];
+          aiBoard[aiMove] = 'O';
+          setBoard(aiBoard);
 
-  const aiMove = useCallback(() => {
-    if (winner || isProcessing) return
-    const bestMove = minimax([...board], 'O')
-    if (bestMove?.index !== undefined) {
-      makeMove(bestMove.index)
+          const aiResult = checkWinner(aiBoard);
+          if (aiResult) {
+            setWinner(aiResult.winner);
+            setWinningLine(aiResult.line);
+          }
+          setCurrentPlayer('X');
+        }
+        setIsProcessing(false);
+      }, 500);
+    } else {
+      setCurrentPlayer(prev => prev === 'X' ? 'O' : 'X');
     }
-  }, [board, winner, isProcessing, minimax, makeMove])
+  }, [board, currentPlayer, winner, isProcessing, isAIMode, checkWinner, findBestMove]);
+
+  const resetGame = useCallback(() => {
+    setBoard(INITIAL_BOARD);
+    setCurrentPlayer('X');
+    setWinner(null);
+    setWinningLine(null);
+    setIsProcessing(false);
+  }, []);
 
   const startNewGame = useCallback((withAI = false) => {
-    setBoard(INITIAL_BOARD)
-    setCurrentPlayer('X')
-    setWinner(null)
-    setWinningLine(null)
-    setIsAIMode(withAI)
-    setIsProcessing(false)
-  }, [])
+    resetGame();
+    setIsAIMode(withAI);
+  }, [resetGame]);
 
   const value = {
     board,
@@ -144,12 +143,14 @@ export function GameProvider({ children }) {
     makeMove,
     startNewGame,
     isAIMode,
-    isProcessing
-  }
+    setIsAIMode,
+    isProcessing,
+    resetGame
+  };
 
   return (
     <GameContext.Provider value={value}>
       {children}
     </GameContext.Provider>
-  )
+  );
 } 
