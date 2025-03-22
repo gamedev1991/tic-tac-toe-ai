@@ -5,14 +5,21 @@ const cors = require('cors');
 require('dotenv').config();
 
 const app = express();
-app.use(cors());
+
+// Update CORS configuration
+app.use(cors({
+  origin: '*',
+  methods: ['GET', 'POST'],
+  credentials: true
+}));
 
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: [process.env.CLIENT_URL, "http://localhost:3000"],
-    methods: ["GET", "POST"],
-    credentials: true
+    origin: '*',
+    methods: ['GET', 'POST'],
+    credentials: true,
+    allowedHeaders: ['Content-Type', 'Authorization']
   }
 });
 
