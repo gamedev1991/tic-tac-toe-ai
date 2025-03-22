@@ -4,6 +4,11 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
 
+console.log('Starting server...');
+console.log('Environment:', process.env.NODE_ENV);
+console.log('Port:', process.env.PORT);
+console.log('Client URL:', process.env.CLIENT_URL);
+
 const app = express();
 
 // Update CORS configuration
@@ -30,12 +35,30 @@ const io = new Server(server, {
 
 // Add a health check endpoint
 app.get('/health', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  console.log('Health check requested');
+  res.status(200).json({ 
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
 });
 
 // Add a basic route to test server
 app.get('/', (req, res) => {
-  res.status(200).json({ message: 'Server is running' });
+  console.log('Root endpoint requested');
+  res.status(200).json({ 
+    message: 'Server is running',
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Error handling middleware
+app.use((err, req, res, next) => {
+  console.error('Server error:', err);
+  res.status(500).json({ 
+    error: 'Internal Server Error',
+    message: err.message
+  });
 });
 
 // Store active games
@@ -286,4 +309,8 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
+  console.log(`Health check available at http://localhost:${PORT}/health`);
+}).on('error', (err) => {
+  console.error('Server failed to start:', err);
+  process.exit(1);
 }); 
