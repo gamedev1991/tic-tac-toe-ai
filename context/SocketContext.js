@@ -25,8 +25,10 @@ export function SocketProvider({ children }) {
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
       timeout: 10000,
-      transports: ['websocket', 'polling'],
-      withCredentials: true
+      transports: ['websocket'],
+      withCredentials: true,
+      secure: true,
+      rejectUnauthorized: false
     });
     socketRef.current = newSocket;
     
