@@ -8,8 +8,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "npm ci --omit=dev",
-    "prod": "npm ci --omit=dev && node index.js"
+    "build": "npm install --production"
   },
   "keywords": [],
   "author": "",
