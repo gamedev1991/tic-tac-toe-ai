@@ -6,9 +6,15 @@ require('dotenv').config();
 
 const app = express();
 
-// Health check endpoint - must be before any middleware
+// Health check endpoint that matches Railway configuration
 app.get('/_health', (req, res) => {
-  res.sendStatus(200);
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: Math.floor(process.uptime()),
+    memory: process.memoryUsage(),
+    isHealthy
+  });
 });
 
 // Basic middleware
@@ -324,6 +330,27 @@ const checkHealth = () => {
   }
 };
 
+// Keep-alive ping to prevent idle shutdown
+const keepAlive = () => {
+  const pingInterval = setInterval(() => {
+    if (shutdownInProgress) {
+      clearInterval(pingInterval);
+      return;
+    }
+    
+    // Perform health check
+    checkHealth();
+    
+    // Log minimal stats to avoid cluttering logs
+    console.log('Health Check:', {
+      uptime: Math.floor(process.uptime()),
+      memory: Math.round(process.memoryUsage().heapUsed / 1024 / 1024) + 'MB',
+      connections: activeConnections,
+      isHealthy
+    });
+  }, 10000); // Check every 10 seconds
+};
+
 // Start server
 server.listen(PORT, () => {
   console.log('Server Starting:', {
@@ -332,16 +359,8 @@ server.listen(PORT, () => {
     time: new Date().toISOString()
   });
   
-  // Periodic health and stats logging
-  const healthCheckInterval = setInterval(() => {
-    if (shutdownInProgress) {
-      console.log('Clearing health check interval due to shutdown');
-      clearInterval(healthCheckInterval);
-      return;
-    }
-    checkHealth();
-    logServerStats();
-  }, 30000);
+  // Start keep-alive mechanism
+  keepAlive();
 });
 
 // Track connection counts

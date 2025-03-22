@@ -6,4 +6,10 @@ buildCommand = "npm install"
 startCommand = "npm start"
 healthcheckPath = "/_health"
 healthcheckTimeout = 10
-restartPolicyType = "on_failure" 
+healthcheckInterval = 10
+restartPolicyType = "on_failure"
+numReplicas = 1
+
+[service]
+internal_port = 3001
+auto_stop_threshold = "24h" 
