@@ -307,13 +307,15 @@ io.on('connection', (socket) => {
 
 // Start server with error handling
 const PORT = process.env.PORT || 3001;
+const HOST = '0.0.0.0';
 
 // Try to start the server
 const startServer = () => {
   try {
-    server.listen(PORT, () => {
-      console.log(`Server running on port ${PORT}`);
-      console.log(`Health check available at http://localhost:${PORT}/health`);
+    server.listen(PORT, HOST, () => {
+      console.log(`Server running on ${HOST}:${PORT}`);
+      console.log(`Health check available at http://${HOST}:${PORT}/health`);
+      console.log('Server startup complete');
     }).on('error', (err) => {
       console.error('Server failed to start:', err);
       if (err.code === 'EADDRINUSE') {
@@ -353,7 +355,7 @@ process.on('SIGTERM', () => {
   setTimeout(() => {
     console.log('Could not close connections in time, forcefully shutting down');
     process.exit(1);
-  }, 10000);
+  }, 30000); // Increased timeout to 30 seconds
 });
 
 // Handle uncaught exceptions without immediate exit
