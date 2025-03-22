@@ -1,15 +1,13 @@
 {
-  "name": "server",
+  "name": "tic-tac-toe-server",
   "version": "1.0.0",
   "main": "index.js",
   "engines": {
-    "node": "18.x",
-    "npm": "9.x"
+    "node": "18.x"
   },
   "scripts": {
     "start": "node index.js",
-    "dev": "nodemon index.js",
-    "build": "npm install --omit=dev"
+    "build": "echo 'Build step not required'"
   },
   "keywords": [],
   "author": "",
