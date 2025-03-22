@@ -44,9 +44,9 @@ const io = new Server(server, {
   allowUpgrades: true
 });
 
-// Health check endpoint - Railway uses this to check if the server is ready
+// Health check endpoints
 app.get('/', (req, res) => {
-  res.status(200).json({ status: 'ok' });
+  res.status(200).send('OK'); // Simple text response for faster health checks
 });
 
 app.get('/health', (req, res) => {
@@ -56,16 +56,6 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
     port: process.env.PORT
-  });
-});
-
-// Root endpoint
-app.get('/', (req, res) => {
-  console.log('Root endpoint requested');
-  res.status(200).json({ 
-    message: 'Server is running',
-    timestamp: new Date().toISOString(),
-    environment: process.env.NODE_ENV
   });
 });
 
@@ -327,6 +317,9 @@ const startServer = () => {
       console.log(`Server running on ${HOST}:${PORT}`);
       console.log(`Health check available at http://${HOST}:${PORT}/health`);
       console.log('Server startup complete');
+
+      // Immediate health check response
+      app.emit('ready');
     });
 
     serverInstance.on('error', (err) => {
@@ -338,12 +331,12 @@ const startServer = () => {
       }
     });
 
-    // Keep the event loop alive
+    // Keep the event loop alive with less frequent heartbeats
     setInterval(() => {
       if (!isShuttingDown) {
         console.log('Server heartbeat - uptime:', process.uptime());
       }
-    }, 30000);
+    }, 60000); // Increased to 60 seconds
 
   } catch (err) {
     console.error('Error during server startup:', err);
@@ -378,7 +371,7 @@ const shutdown = () => {
       setTimeout(() => {
         console.log('Could not close connections in time, forcefully shutting down');
         process.exit(1);
-      }, 15000);
+      }, 5000); // Reduced timeout for faster shutdown
     } else {
       console.log('No server instance to close');
       process.exit(0);
