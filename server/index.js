@@ -14,6 +14,17 @@ console.log('Current directory:', process.cwd());
 
 const app = express();
 
+// Health check middleware - respond immediately to health checks
+app.use((req, res, next) => {
+  if (req.path === '/') {
+    return res.status(200).send('OK');
+  }
+  if (req.path === '/ready') {
+    return res.status(200).send('Ready');
+  }
+  next();
+});
+
 // Basic middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -44,11 +55,7 @@ const io = new Server(server, {
   allowUpgrades: true
 });
 
-// Health check endpoints
-app.get('/', (req, res) => {
-  res.status(200).send('OK'); // Simple text response for faster health checks
-});
-
+// Detailed health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ 
     status: 'ok',
@@ -56,16 +63,6 @@ app.get('/health', (req, res) => {
     uptime: process.uptime(),
     environment: process.env.NODE_ENV,
     port: process.env.PORT
-  });
-});
-
-// Error handling middleware
-app.use((err, req, res, next) => {
-  console.error('Server error:', err);
-  res.status(500).json({ 
-    error: 'Internal Server Error',
-    message: err.message,
-    timestamp: new Date().toISOString()
   });
 });
 
@@ -315,11 +312,16 @@ const startServer = () => {
   try {
     serverInstance = server.listen(PORT, HOST, () => {
       console.log(`Server running on ${HOST}:${PORT}`);
-      console.log(`Health check available at http://${HOST}:${PORT}/health`);
       console.log('Server startup complete');
 
-      // Immediate health check response
-      app.emit('ready');
+      // Keep the event loop alive with less frequent heartbeats
+      const heartbeatInterval = setInterval(() => {
+        if (!isShuttingDown) {
+          console.log('Server heartbeat - uptime:', process.uptime());
+        } else {
+          clearInterval(heartbeatInterval);
+        }
+      }, 60000);
     });
 
     serverInstance.on('error', (err) => {
@@ -330,13 +332,6 @@ const startServer = () => {
         setTimeout(startServer, 1000);
       }
     });
-
-    // Keep the event loop alive with less frequent heartbeats
-    setInterval(() => {
-      if (!isShuttingDown) {
-        console.log('Server heartbeat - uptime:', process.uptime());
-      }
-    }, 60000); // Increased to 60 seconds
 
   } catch (err) {
     console.error('Error during server startup:', err);
@@ -371,7 +366,7 @@ const shutdown = () => {
       setTimeout(() => {
         console.log('Could not close connections in time, forcefully shutting down');
         process.exit(1);
-      }, 5000); // Reduced timeout for faster shutdown
+      }, 5000);
     } else {
       console.log('No server instance to close');
       process.exit(0);
