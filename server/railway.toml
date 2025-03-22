@@ -4,12 +4,7 @@ buildCommand = "npm install"
 
 [deploy]
 startCommand = "npm start"
-healthcheckPath = "/_health"
-healthcheckTimeout = 10
-healthcheckInterval = 10
 restartPolicyType = "on_failure"
-numReplicas = 1
 
 [service]
-internal_port = 3001
-auto_stop_threshold = "24h" 
+internal_port = 3001 
