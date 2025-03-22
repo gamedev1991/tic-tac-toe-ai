@@ -309,22 +309,33 @@ io.on('connection', (socket) => {
 const PORT = process.env.PORT || 3001;
 const HOST = '0.0.0.0';
 
+let serverInstance = null;
+
 // Try to start the server
 const startServer = () => {
+  if (serverInstance) {
+    console.log('Server instance already exists, skipping start');
+    return;
+  }
+
   try {
-    server.listen(PORT, HOST, () => {
+    serverInstance = server.listen(PORT, HOST, () => {
       console.log(`Server running on ${HOST}:${PORT}`);
       console.log(`Health check available at http://${HOST}:${PORT}/health`);
       console.log('Server startup complete');
-    }).on('error', (err) => {
+    });
+
+    serverInstance.on('error', (err) => {
       console.error('Server failed to start:', err);
       if (err.code === 'EADDRINUSE') {
         console.log('Port is busy, retrying in 1 second...');
+        serverInstance = null;
         setTimeout(startServer, 1000);
       }
     });
   } catch (err) {
     console.error('Error during server startup:', err);
+    serverInstance = null;
     // Retry after a delay
     setTimeout(startServer, 1000);
   }
@@ -336,26 +347,41 @@ startServer();
 // Handle graceful shutdown
 let isShuttingDown = false;
 
-process.on('SIGTERM', () => {
+const shutdown = () => {
   if (isShuttingDown) {
     console.log('Shutdown already in progress...');
     return;
   }
   
   isShuttingDown = true;
-  console.log('Received SIGTERM signal. Starting graceful shutdown...');
-  
-  // Close server gracefully
-  server.close(() => {
-    console.log('Server closed successfully.');
-    process.exit(0);
-  });
+  console.log('Starting graceful shutdown...');
 
-  // Force close after timeout
-  setTimeout(() => {
-    console.log('Could not close connections in time, forcefully shutting down');
-    process.exit(1);
-  }, 30000); // Increased timeout to 30 seconds
+  if (serverInstance) {
+    serverInstance.close(() => {
+      console.log('Server closed successfully.');
+      process.exit(0);
+    });
+
+    // Force close after timeout
+    setTimeout(() => {
+      console.log('Could not close connections in time, forcefully shutting down');
+      process.exit(1);
+    }, 10000);
+  } else {
+    console.log('No server instance to close');
+    process.exit(0);
+  }
+};
+
+// Handle different termination signals
+process.on('SIGTERM', () => {
+  console.log('Received SIGTERM signal');
+  shutdown();
+});
+
+process.on('SIGINT', () => {
+  console.log('Received SIGINT signal');
+  shutdown();
 });
 
 // Handle uncaught exceptions without immediate exit
