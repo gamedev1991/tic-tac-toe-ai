@@ -4,6 +4,13 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
 
+const app = express();
+
+// Immediate health check response before any other middleware
+app.get('/', (req, res) => res.sendStatus(200));
+app.get('/health', (req, res) => res.sendStatus(200));
+app.get('/ready', (req, res) => res.sendStatus(200));
+
 // Enhanced logging
 console.log('Starting server...');
 console.log('Environment:', process.env.NODE_ENV);
@@ -11,19 +18,6 @@ console.log('Port:', process.env.PORT);
 console.log('Client URL:', process.env.CLIENT_URL);
 console.log('Node version:', process.version);
 console.log('Current directory:', process.cwd());
-
-const app = express();
-
-// Health check middleware - respond immediately to health checks
-app.use((req, res, next) => {
-  if (req.path === '/') {
-    return res.status(200).send('OK');
-  }
-  if (req.path === '/ready') {
-    return res.status(200).send('Ready');
-  }
-  next();
-});
 
 // Basic middleware
 app.use(express.json());
@@ -53,17 +47,6 @@ const io = new Server(server, {
   pingInterval: 25000,
   allowEIO3: true,
   allowUpgrades: true
-});
-
-// Detailed health check endpoint
-app.get('/health', (req, res) => {
-  res.status(200).json({ 
-    status: 'ok',
-    timestamp: new Date().toISOString(),
-    uptime: process.uptime(),
-    environment: process.env.NODE_ENV,
-    port: process.env.PORT
-  });
 });
 
 // Store active games
@@ -313,25 +296,36 @@ const startServer = () => {
     serverInstance = server.listen(PORT, HOST, () => {
       console.log(`Server running on ${HOST}:${PORT}`);
       console.log('Server startup complete');
-
-      // Keep the event loop alive with less frequent heartbeats
-      const heartbeatInterval = setInterval(() => {
-        if (!isShuttingDown) {
-          console.log('Server heartbeat - uptime:', process.uptime());
-        } else {
-          clearInterval(heartbeatInterval);
-        }
-      }, 60000);
+      
+      // Log successful health check response
+      console.log('Health check endpoints ready at:');
+      console.log(`- http://${HOST}:${PORT}/`);
+      console.log(`- http://${HOST}:${PORT}/health`);
+      console.log(`- http://${HOST}:${PORT}/ready`);
     });
 
+    // Handle server errors
     serverInstance.on('error', (err) => {
-      console.error('Server failed to start:', err);
+      console.error('Server error:', err);
       if (err.code === 'EADDRINUSE') {
         console.log('Port is busy, retrying in 1 second...');
         serverInstance = null;
         setTimeout(startServer, 1000);
       }
     });
+
+    // Keep-alive ping to prevent Railway from thinking the server is dead
+    const keepAliveInterval = setInterval(() => {
+      if (!isShuttingDown) {
+        http.get(`http://${HOST}:${PORT}/health`, (res) => {
+          console.log('Keep-alive health check status:', res.statusCode);
+        }).on('error', (err) => {
+          console.error('Keep-alive health check failed:', err.message);
+        });
+      } else {
+        clearInterval(keepAliveInterval);
+      }
+    }, 10000);
 
   } catch (err) {
     console.error('Error during server startup:', err);
@@ -366,7 +360,7 @@ const shutdown = () => {
       setTimeout(() => {
         console.log('Could not close connections in time, forcefully shutting down');
         process.exit(1);
-      }, 5000);
+      }, 10000);
     } else {
       console.log('No server instance to close');
       process.exit(0);
