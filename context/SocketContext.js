@@ -18,7 +18,8 @@ export function SocketProvider({ children }) {
   const socketRef = useRef(null);
 
   useEffect(() => {
-    const newSocket = io('http://localhost:3001');
+    const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
+    const newSocket = io(serverUrl);
     socketRef.current = newSocket;
     
     newSocket.on('connect', () => {
