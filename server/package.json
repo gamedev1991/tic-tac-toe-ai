@@ -9,7 +9,7 @@
   "scripts": {
     "start": "node index.js",
     "dev": "nodemon index.js",
-    "build": "npm ci"
+    "build": "npm install --production"
   },
   "keywords": [],
   "author": "",
