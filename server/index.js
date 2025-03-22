@@ -6,18 +6,10 @@ require('dotenv').config();
 
 const app = express();
 
-// Immediate health check response before any other middleware
-app.get('/', (req, res) => res.sendStatus(200));
-app.get('/health', (req, res) => res.sendStatus(200));
-app.get('/ready', (req, res) => res.sendStatus(200));
-
-// Enhanced logging
-console.log('Starting server...');
-console.log('Environment:', process.env.NODE_ENV);
-console.log('Port:', process.env.PORT);
-console.log('Client URL:', process.env.CLIENT_URL);
-console.log('Node version:', process.version);
-console.log('Current directory:', process.cwd());
+// Health check endpoint - must be before any middleware
+app.get('/_health', (req, res) => {
+  res.sendStatus(200);
+});
 
 // Basic middleware
 app.use(express.json());
@@ -44,9 +36,20 @@ const io = new Server(server, {
   },
   transports: ['polling', 'websocket'],
   pingTimeout: 60000,
-  pingInterval: 25000,
-  allowEIO3: true,
-  allowUpgrades: true
+  pingInterval: 25000
+});
+
+// Root endpoint for basic health check
+app.get('/', (req, res) => {
+  res.sendStatus(200);
+});
+
+// Detailed health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    uptime: process.uptime()
+  });
 });
 
 // Store active games
@@ -278,121 +281,82 @@ io.on('connection', (socket) => {
   });
 });
 
-// Start server with error handling
+// Server startup and health monitoring
 const PORT = process.env.PORT || 3001;
-const HOST = '0.0.0.0';
+let isHealthy = true; // Start as healthy
+let shutdownInProgress = false;
 
-let serverInstance = null;
-let isShuttingDown = false;
+// Simple memory usage check
+const checkMemoryHealth = () => {
+  const usedMemory = process.memoryUsage().heapUsed / 1024 / 1024; // MB
+  return usedMemory < 512; // Less than 512MB is healthy
+};
 
-// Try to start the server
-const startServer = () => {
-  if (serverInstance) {
-    console.log('Server instance already exists, skipping start');
-    return;
-  }
-
-  try {
-    serverInstance = server.listen(PORT, HOST, () => {
-      console.log(`Server running on ${HOST}:${PORT}`);
-      console.log('Server startup complete');
-      
-      // Log successful health check response
-      console.log('Health check endpoints ready at:');
-      console.log(`- http://${HOST}:${PORT}/`);
-      console.log(`- http://${HOST}:${PORT}/health`);
-      console.log(`- http://${HOST}:${PORT}/ready`);
-    });
-
-    // Handle server errors
-    serverInstance.on('error', (err) => {
-      console.error('Server error:', err);
-      if (err.code === 'EADDRINUSE') {
-        console.log('Port is busy, retrying in 1 second...');
-        serverInstance = null;
-        setTimeout(startServer, 1000);
-      }
-    });
-
-    // Keep-alive ping to prevent Railway from thinking the server is dead
-    const keepAliveInterval = setInterval(() => {
-      if (!isShuttingDown) {
-        http.get(`http://${HOST}:${PORT}/health`, (res) => {
-          console.log('Keep-alive health check status:', res.statusCode);
-        }).on('error', (err) => {
-          console.error('Keep-alive health check failed:', err.message);
-        });
-      } else {
-        clearInterval(keepAliveInterval);
-      }
-    }, 10000);
-
-  } catch (err) {
-    console.error('Error during server startup:', err);
-    serverInstance = null;
-    if (!isShuttingDown) {
-      setTimeout(startServer, 1000);
-    }
+// Health check function
+const checkHealth = () => {
+  if (!shutdownInProgress) {
+    // Only check memory usage for now
+    isHealthy = checkMemoryHealth();
   }
 };
 
-// Handle graceful shutdown
-const shutdown = () => {
-  if (isShuttingDown) {
-    console.log('Shutdown already in progress...');
-    return;
-  }
+// Start server
+server.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
   
-  isShuttingDown = true;
-  console.log('Starting graceful shutdown...');
-
-  // Close Socket.IO connections first
-  io.close(() => {
-    console.log('Socket.IO server closed');
-    
-    if (serverInstance) {
-      serverInstance.close(() => {
-        console.log('HTTP server closed successfully');
-        process.exit(0);
-      });
-
-      // Force close after timeout
-      setTimeout(() => {
-        console.log('Could not close connections in time, forcefully shutting down');
-        process.exit(1);
-      }, 10000);
-    } else {
-      console.log('No server instance to close');
-      process.exit(0);
+  // Periodic health checks every 30 seconds
+  const healthCheckInterval = setInterval(() => {
+    if (shutdownInProgress) {
+      clearInterval(healthCheckInterval);
+      return;
     }
+    checkHealth();
+  }, 30000);
+});
+
+// Graceful shutdown handler
+const gracefulShutdown = (signal) => {
+  if (shutdownInProgress) {
+    console.log('Shutdown already in progress');
+    return;
+  }
+
+  shutdownInProgress = true;
+  console.log(`Received ${signal}. Starting graceful shutdown...`);
+
+  // Stop accepting new connections
+  server.close(() => {
+    console.log('HTTP server closed');
+    
+    // Close Socket.IO connections
+    io.close(() => {
+      console.log('Socket.IO server closed');
+      process.exit(0);
+    });
   });
+
+  // Force shutdown after timeout
+  setTimeout(() => {
+    console.log('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
 };
 
-// Handle different termination signals
-process.on('SIGTERM', () => {
-  console.log('Received SIGTERM signal');
-  shutdown();
-});
+// Signal handlers
+process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 
-process.on('SIGINT', () => {
-  console.log('Received SIGINT signal');
-  shutdown();
-});
-
-// Handle uncaught exceptions without immediate exit
+// Error handlers
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
-  if (!isShuttingDown) {
-    console.log('Process continuing after uncaught exception...');
+  if (!shutdownInProgress) {
+    gracefulShutdown('uncaughtException');
   }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  if (!isShuttingDown) {
-    console.log('Process continuing after unhandled rejection...');
+  if (!shutdownInProgress) {
+    gracefulShutdown('unhandledRejection');
   }
-});
-
-// Initial server start
-startServer(); 
+}); 
