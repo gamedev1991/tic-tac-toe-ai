@@ -4,21 +4,31 @@ const { Server } = require('socket.io');
 const cors = require('cors');
 require('dotenv').config();
 
+// Enhanced logging
 console.log('Starting server...');
 console.log('Environment:', process.env.NODE_ENV);
 console.log('Port:', process.env.PORT);
 console.log('Client URL:', process.env.CLIENT_URL);
+console.log('Node version:', process.version);
 
 const app = express();
 
-// Update CORS configuration
+// Basic middleware
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// CORS configuration
 app.use(cors({
   origin: '*',
   methods: ['GET', 'POST'],
-  credentials: true
+  credentials: true,
+  allowedHeaders: ['Content-Type', 'Authorization']
 }));
 
+// Create HTTP server
 const server = http.createServer(app);
+
+// Socket.IO configuration
 const io = new Server(server, {
   cors: {
     origin: '*',
@@ -33,22 +43,25 @@ const io = new Server(server, {
   allowUpgrades: true
 });
 
-// Add a health check endpoint
+// Health check endpoint
 app.get('/health', (req, res) => {
   console.log('Health check requested');
   res.status(200).json({ 
     status: 'ok',
     timestamp: new Date().toISOString(),
-    uptime: process.uptime()
+    uptime: process.uptime(),
+    environment: process.env.NODE_ENV,
+    port: process.env.PORT
   });
 });
 
-// Add a basic route to test server
+// Root endpoint
 app.get('/', (req, res) => {
   console.log('Root endpoint requested');
   res.status(200).json({ 
     message: 'Server is running',
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    environment: process.env.NODE_ENV
   });
 });
 
@@ -57,7 +70,8 @@ app.use((err, req, res, next) => {
   console.error('Server error:', err);
   res.status(500).json({ 
     error: 'Internal Server Error',
-    message: err.message
+    message: err.message,
+    timestamp: new Date().toISOString()
   });
 });
 
@@ -94,15 +108,10 @@ const checkWinner = (board) => {
 };
 
 io.on('connection', (socket) => {
-  console.log('User connected:', socket.id);
-  console.log('Connection details:', {
-    clientUrl: process.env.CLIENT_URL,
-    origin: socket.handshake.headers.origin,
-    timestamp: new Date().toISOString()
-  });
-
-  socket.on('connect_error', (error) => {
-    console.error('Connection error:', error);
+  console.log('Client connected:', socket.id);
+  
+  socket.on('disconnect', () => {
+    console.log('Client disconnected:', socket.id);
   });
 
   socket.on('error', (error) => {
@@ -293,24 +302,25 @@ io.on('connection', (socket) => {
       });
     }
   });
-
-  // Handle disconnection
-  socket.on('disconnect', () => {
-    console.log('User disconnected:', socket.id);
-    games.forEach((game, roomId) => {
-      if (game.players.includes(socket.id)) {
-        io.to(roomId).emit('playerDisconnected');
-        games.delete(roomId);
-      }
-    });
-  });
 });
 
+// Start server with error handling
 const PORT = process.env.PORT || 3001;
 server.listen(PORT, () => {
   console.log(`Server running on port ${PORT}`);
   console.log(`Health check available at http://localhost:${PORT}/health`);
 }).on('error', (err) => {
   console.error('Server failed to start:', err);
+  process.exit(1);
+});
+
+// Handle uncaught exceptions
+process.on('uncaughtException', (err) => {
+  console.error('Uncaught Exception:', err);
+  process.exit(1);
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('Unhandled Rejection at:', promise, 'reason:', reason);
   process.exit(1);
 }); 
