@@ -21,14 +21,21 @@ const io = new Server(server, {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
   },
-  transports: ['websocket', 'polling'],
+  transports: ['polling', 'websocket'],
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  allowEIO3: true,
+  allowUpgrades: true
 });
 
 // Add a health check endpoint
 app.get('/health', (req, res) => {
   res.status(200).json({ status: 'ok' });
+});
+
+// Add a basic route to test server
+app.get('/', (req, res) => {
+  res.status(200).json({ message: 'Server is running' });
 });
 
 // Store active games
