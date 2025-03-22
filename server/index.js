@@ -10,9 +10,15 @@ app.use(cors());
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.CLIENT_URL || "http://localhost:3000",
-    methods: ["GET", "POST"]
+    origin: [process.env.CLIENT_URL, "http://localhost:3000"],
+    methods: ["GET", "POST"],
+    credentials: true
   }
+});
+
+// Add a health check endpoint
+app.get('/health', (req, res) => {
+  res.status(200).json({ status: 'ok' });
 });
 
 // Store active games
@@ -49,6 +55,19 @@ const checkWinner = (board) => {
 
 io.on('connection', (socket) => {
   console.log('User connected:', socket.id);
+  console.log('Connection details:', {
+    clientUrl: process.env.CLIENT_URL,
+    origin: socket.handshake.headers.origin,
+    timestamp: new Date().toISOString()
+  });
+
+  socket.on('connect_error', (error) => {
+    console.error('Connection error:', error);
+  });
+
+  socket.on('error', (error) => {
+    console.error('Socket error:', error);
+  });
 
   // Create a new game room
   socket.on('game:create', () => {

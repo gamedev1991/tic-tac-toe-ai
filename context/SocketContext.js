@@ -19,18 +19,29 @@ export function SocketProvider({ children }) {
 
   useEffect(() => {
     const serverUrl = process.env.NEXT_PUBLIC_SERVER_URL || 'http://localhost:3001';
-    const newSocket = io(serverUrl);
+    console.log('Connecting to server:', serverUrl);
+    const newSocket = io(serverUrl, {
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 10000
+    });
     socketRef.current = newSocket;
     
     newSocket.on('connect', () => {
+      console.log('Connected to server successfully');
       setConnected(true);
-      console.log('Connected to server');
       setSocket(newSocket);
     });
 
-    newSocket.on('disconnect', () => {
+    newSocket.on('connect_error', (error) => {
+      console.error('Failed to connect to server:', error);
       setConnected(false);
-      console.log('Disconnected from server');
+    });
+
+    newSocket.on('disconnect', (reason) => {
+      console.log('Disconnected from server:', reason);
+      setConnected(false);
       setSocket(null);
       setRoomId(null);
       setPlayers([]);
