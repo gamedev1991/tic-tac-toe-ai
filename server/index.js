@@ -7,13 +7,14 @@ require('dotenv').config();
 // Environment variables with defaults
 const PORT = process.env.PORT || 3001;
 const NODE_ENV = process.env.NODE_ENV || 'development';
-const CORS_ORIGIN = process.env.CORS_ORIGIN || '*';
+const CORS_ORIGIN = process.env.CORS_ORIGIN || 'https://tic-tac-toe-ai-ashen.vercel.app';
 
 // Log startup configuration
 console.log({
   event: 'SERVER_CONFIG',
   port: PORT,
   environment: NODE_ENV,
+  corsOrigin: CORS_ORIGIN,
   time: new Date().toISOString()
 });
 
