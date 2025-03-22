@@ -44,9 +44,12 @@ const io = new Server(server, {
   allowUpgrades: true
 });
 
-// Health check endpoint
+// Health check endpoint - Railway uses this to check if the server is ready
+app.get('/', (req, res) => {
+  res.status(200).json({ status: 'ok' });
+});
+
 app.get('/health', (req, res) => {
-  console.log('Health check requested');
   res.status(200).json({ 
     status: 'ok',
     timestamp: new Date().toISOString(),
@@ -310,6 +313,7 @@ const PORT = process.env.PORT || 3001;
 const HOST = '0.0.0.0';
 
 let serverInstance = null;
+let isShuttingDown = false;
 
 // Try to start the server
 const startServer = () => {
@@ -333,20 +337,24 @@ const startServer = () => {
         setTimeout(startServer, 1000);
       }
     });
+
+    // Keep the event loop alive
+    setInterval(() => {
+      if (!isShuttingDown) {
+        console.log('Server heartbeat - uptime:', process.uptime());
+      }
+    }, 30000);
+
   } catch (err) {
     console.error('Error during server startup:', err);
     serverInstance = null;
-    // Retry after a delay
-    setTimeout(startServer, 1000);
+    if (!isShuttingDown) {
+      setTimeout(startServer, 1000);
+    }
   }
 };
 
-// Initial server start
-startServer();
-
 // Handle graceful shutdown
-let isShuttingDown = false;
-
 const shutdown = () => {
   if (isShuttingDown) {
     console.log('Shutdown already in progress...');
@@ -356,21 +364,26 @@ const shutdown = () => {
   isShuttingDown = true;
   console.log('Starting graceful shutdown...');
 
-  if (serverInstance) {
-    serverInstance.close(() => {
-      console.log('Server closed successfully.');
-      process.exit(0);
-    });
+  // Close Socket.IO connections first
+  io.close(() => {
+    console.log('Socket.IO server closed');
+    
+    if (serverInstance) {
+      serverInstance.close(() => {
+        console.log('HTTP server closed successfully');
+        process.exit(0);
+      });
 
-    // Force close after timeout
-    setTimeout(() => {
-      console.log('Could not close connections in time, forcefully shutting down');
-      process.exit(1);
-    }, 10000);
-  } else {
-    console.log('No server instance to close');
-    process.exit(0);
-  }
+      // Force close after timeout
+      setTimeout(() => {
+        console.log('Could not close connections in time, forcefully shutting down');
+        process.exit(1);
+      }, 15000);
+    } else {
+      console.log('No server instance to close');
+      process.exit(0);
+    }
+  });
 };
 
 // Handle different termination signals
@@ -397,4 +410,7 @@ process.on('unhandledRejection', (reason, promise) => {
   if (!isShuttingDown) {
     console.log('Process continuing after unhandled rejection...');
   }
-}); 
+});
+
+// Initial server start
+startServer(); 
