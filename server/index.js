@@ -10,6 +10,7 @@ console.log('Environment:', process.env.NODE_ENV);
 console.log('Port:', process.env.PORT);
 console.log('Client URL:', process.env.CLIENT_URL);
 console.log('Node version:', process.version);
+console.log('Current directory:', process.cwd());
 
 const app = express();
 
@@ -306,21 +307,66 @@ io.on('connection', (socket) => {
 
 // Start server with error handling
 const PORT = process.env.PORT || 3001;
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-  console.log(`Health check available at http://localhost:${PORT}/health`);
-}).on('error', (err) => {
-  console.error('Server failed to start:', err);
-  process.exit(1);
+
+// Try to start the server
+const startServer = () => {
+  try {
+    server.listen(PORT, () => {
+      console.log(`Server running on port ${PORT}`);
+      console.log(`Health check available at http://localhost:${PORT}/health`);
+    }).on('error', (err) => {
+      console.error('Server failed to start:', err);
+      if (err.code === 'EADDRINUSE') {
+        console.log('Port is busy, retrying in 1 second...');
+        setTimeout(startServer, 1000);
+      }
+    });
+  } catch (err) {
+    console.error('Error during server startup:', err);
+    // Retry after a delay
+    setTimeout(startServer, 1000);
+  }
+};
+
+// Initial server start
+startServer();
+
+// Handle graceful shutdown
+let isShuttingDown = false;
+
+process.on('SIGTERM', () => {
+  if (isShuttingDown) {
+    console.log('Shutdown already in progress...');
+    return;
+  }
+  
+  isShuttingDown = true;
+  console.log('Received SIGTERM signal. Starting graceful shutdown...');
+  
+  // Close server gracefully
+  server.close(() => {
+    console.log('Server closed successfully.');
+    process.exit(0);
+  });
+
+  // Force close after timeout
+  setTimeout(() => {
+    console.log('Could not close connections in time, forcefully shutting down');
+    process.exit(1);
+  }, 10000);
 });
 
-// Handle uncaught exceptions
+// Handle uncaught exceptions without immediate exit
 process.on('uncaughtException', (err) => {
   console.error('Uncaught Exception:', err);
-  process.exit(1);
+  if (!isShuttingDown) {
+    console.log('Process continuing after uncaught exception...');
+  }
 });
 
 process.on('unhandledRejection', (reason, promise) => {
   console.error('Unhandled Rejection at:', promise, 'reason:', reason);
-  process.exit(1);
+  if (!isShuttingDown) {
+    console.log('Process continuing after unhandled rejection...');
+  }
 }); 
