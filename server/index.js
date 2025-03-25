@@ -56,23 +56,7 @@ const io = new Server(server, {
   },
   transports: ['websocket', 'polling'],
   pingTimeout: 60000,
-  pingInterval: 25000,
-  connectTimeout: 45000,
-  reconnection: true,
-  reconnectionAttempts: 5,
-  reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000,
-  allowEIO3: true,
-  allowUpgrades: true,
-  cookie: {
-    name: 'io',
-    httpOnly: true,
-    sameSite: 'none',
-    secure: true
-  },
-  path: '/socket.io/',
-  serveClient: false,
-  maxHttpBufferSize: 1e6
+  pingInterval: 25000
 });
 
 // Track connection state
@@ -122,174 +106,39 @@ const checkWinner = (board) => {
 // Socket connection handling
 io.on('connection', (socket) => {
   activeConnections++;
-  console.log({
-    event: 'CLIENT_CONNECTED',
-    socketId: socket.id,
-    totalConnections: activeConnections,
-    timestamp: new Date().toISOString(),
-    transport: socket.conn.transport.name
-  });
-
-  // Handle transport change
-  socket.conn.on('upgrade', (transport) => {
-    console.log({
-      event: 'TRANSPORT_UPGRADED',
-      socketId: socket.id,
-      transport: transport.name,
-      timestamp: new Date().toISOString()
-    });
-  });
-
-  // Handle ping
-  socket.conn.on('packet', (packet) => {
-    if (packet.type === 'ping') {
-      console.log({
-        event: 'PING_RECEIVED',
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
-    }
-  });
+  console.log(`Client connected: ${socket.id} (Total: ${activeConnections})`);
 
   // Game event handlers
   socket.on('game:create', () => {
-    try {
-      console.log({
-        event: 'GAME_CREATE_REQUESTED',
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
-
-      // Check if socket is already in a room
-      const currentRooms = Array.from(socket.rooms);
-      if (currentRooms.length > 1) {
-        console.log({
-          event: 'SOCKET_ALREADY_IN_ROOM',
-          socketId: socket.id,
-          rooms: currentRooms,
-          timestamp: new Date().toISOString()
-        });
-        return;
-      }
-
-      const roomId = generateRoomId();
-      console.log({
-        event: 'ROOM_CREATED',
-        roomId,
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
-
-      // Create game state
-      const gameState = {
-        players: [socket.id],
-        board: Array(9).fill(null),
-        currentPlayer: 'X',
-        winner: null,
-        winningLine: null
-      };
-
-      // Set game state before joining room
-      games.set(roomId, gameState);
-
-      // Join room and emit events in sequence
-      socket.join(roomId, (err) => {
-        if (err) {
-          console.error({
-            event: 'ROOM_JOIN_ERROR',
-            error: err.message,
-            roomId,
-            socketId: socket.id,
-            timestamp: new Date().toISOString()
-          });
-          return;
-        }
-
-        console.log({
-          event: 'SOCKET_JOINED_ROOM',
-          roomId,
-          socketId: socket.id,
-          timestamp: new Date().toISOString()
-        });
-
-        // Emit game created event with complete game state
-        socket.emit('game:created', {
-          roomId,
-          players: gameState.players,
-          board: gameState.board,
-          currentPlayer: gameState.currentPlayer
-        });
-
-        console.log({
-          event: 'GAME_CREATED_EVENT_SENT',
-          roomId,
-          socketId: socket.id,
-          timestamp: new Date().toISOString()
-        });
-      });
-    } catch (error) {
-      console.error({
-        event: 'GAME_CREATE_ERROR',
-        error: error.message,
-        stack: error.stack,
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
-    }
+    const roomId = generateRoomId();
+    games.set(roomId, {
+      players: [socket.id],
+      board: Array(9).fill(null),
+      currentPlayer: 'X',
+      winner: null,
+      winningLine: null
+    });
+    socket.join(roomId);
+    socket.emit('game:created', { roomId, players: [socket.id] });
   });
 
   socket.on('game:join', (roomId) => {
-    console.log({
-      event: 'GAME_JOIN_REQUESTED',
-      roomId,
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-
     const game = games.get(roomId);
     if (!game) {
-      console.log({
-        event: 'GAME_NOT_FOUND',
-        roomId,
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
       socket.emit('error', { message: 'Game not found' });
       return;
     }
     if (game.players.length >= 2) {
-      console.log({
-        event: 'GAME_FULL',
-        roomId,
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
       socket.emit('error', { message: 'Game is full' });
       return;
     }
-
     game.players.push(socket.id);
     socket.join(roomId);
-    console.log({
-      event: 'PLAYER_JOINED_GAME',
-      roomId,
-      socketId: socket.id,
-      players: game.players,
-      timestamp: new Date().toISOString()
-    });
-
     socket.emit('game:joined', { roomId, players: game.players });
     io.to(roomId).emit('gameStarted', {
       board: game.board,
       currentPlayer: game.currentPlayer,
       players: game.players
-    });
-    console.log({
-      event: 'GAME_STARTED_EVENT_SENT',
-      roomId,
-      socketId: socket.id,
-      players: game.players,
-      timestamp: new Date().toISOString()
     });
   });
 
@@ -327,13 +176,6 @@ io.on('connection', (socket) => {
 
   // Handle game reset
   socket.on('resetGame', (roomId) => {
-    console.log({
-      event: 'GAME_RESET_REQUESTED',
-      roomId,
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-
     const game = games.get(roomId);
     if (game) {
       // Reset game state
@@ -348,24 +190,13 @@ io.on('connection', (socket) => {
         currentPlayer: game.currentPlayer,
         players: game.players
       });
-      console.log({
-        event: 'GAME_RESET_EVENT_SENT',
-        roomId,
-        socketId: socket.id,
-        timestamp: new Date().toISOString()
-      });
     }
   });
 
-  // Consolidated disconnect handler
+  // Handle disconnection
   socket.on('disconnect', () => {
     activeConnections--;
-    console.log({
-      event: 'CLIENT_DISCONNECTED',
-      socketId: socket.id,
-      totalConnections: activeConnections,
-      timestamp: new Date().toISOString()
-    });
+    console.log(`Client disconnected: ${socket.id} (Total: ${activeConnections})`);
 
     const roomId = Array.from(socket.rooms).find(room => room !== socket.id);
     if (roomId) {
@@ -377,23 +208,11 @@ io.on('connection', (socket) => {
         // If there are no players left, delete the game
         if (game.players.length === 0) {
           games.delete(roomId);
-          console.log({
-            event: 'GAME_DELETED',
-            roomId,
-            reason: 'No players left',
-            timestamp: new Date().toISOString()
-          });
         } else {
           // Notify the remaining player that their opponent has left
           io.to(roomId).emit('opponentLeft', {
             message: 'Your opponent has left the game',
             players: game.players
-          });
-          console.log({
-            event: 'OPPONENT_LEFT_NOTIFICATION_SENT',
-            roomId,
-            remainingPlayers: game.players,
-            timestamp: new Date().toISOString()
           });
         }
       }
