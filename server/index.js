@@ -105,32 +105,33 @@ io.on('connection', (socket) => {
   activeConnections++;
   console.log(`Client connected: ${socket.id} (Total: ${activeConnections})`);
 
-  socket.on('disconnect', () => {
-    activeConnections--;
-    console.log(`Client disconnected: ${socket.id} (Total: ${activeConnections})`);
-  });
-
   // Game event handlers
   socket.on('game:create', () => {
     const roomId = generateRoomId();
     games.set(roomId, {
       players: [socket.id],
       board: Array(9).fill(null),
-      currentPlayer: 'X'
+      currentPlayer: 'X',
+      winner: null,
+      winningLine: null
     });
     socket.join(roomId);
-    socket.emit('game:created', roomId);
+    socket.emit('game:created', { roomId, players: [socket.id] });
   });
 
   socket.on('game:join', (roomId) => {
     const game = games.get(roomId);
-    if (!game || game.players.length >= 2) {
-      socket.emit('error', { message: game ? 'Game is full' : 'Game not found' });
+    if (!game) {
+      socket.emit('error', { message: 'Game not found' });
+      return;
+    }
+    if (game.players.length >= 2) {
+      socket.emit('error', { message: 'Game is full' });
       return;
     }
     game.players.push(socket.id);
     socket.join(roomId);
-    socket.emit('game:joined', roomId);
+    socket.emit('game:joined', { roomId, players: game.players });
     io.to(roomId).emit('gameStarted', {
       board: game.board,
       currentPlayer: game.currentPlayer,
@@ -189,14 +190,17 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Handle disconnection
+  // Consolidated disconnect handler
   socket.on('disconnect', () => {
+    activeConnections--;
+    console.log(`Client disconnected: ${socket.id} (Total: ${activeConnections})`);
+
     const roomId = Array.from(socket.rooms).find(room => room !== socket.id);
     if (roomId) {
       const game = games.get(roomId);
       if (game) {
         // Remove the disconnected player from the game
-        game.players = game.players.filter(player => player.id !== socket.id);
+        game.players = game.players.filter(player => player !== socket.id);
         
         // If there are no players left, delete the game
         if (game.players.length === 0) {
