@@ -63,8 +63,20 @@ const io = new Server(server, {
   reconnectionDelay: 1000,
   reconnectionDelayMax: 5000,
   allowEIO3: true,
-  allowUpgrades: true
+  allowUpgrades: true,
+  cookie: {
+    name: 'io',
+    httpOnly: true,
+    sameSite: 'none',
+    secure: true
+  },
+  path: '/socket.io/',
+  serveClient: false,
+  maxHttpBufferSize: 1e6
 });
+
+// Track connection state
+let isHealthy = true;
 
 // Root endpoint for basic health check
 app.get('/', (req, res) => {
@@ -114,72 +126,116 @@ io.on('connection', (socket) => {
     event: 'CLIENT_CONNECTED',
     socketId: socket.id,
     totalConnections: activeConnections,
-    timestamp: new Date().toISOString()
+    timestamp: new Date().toISOString(),
+    transport: socket.conn.transport.name
+  });
+
+  // Handle transport change
+  socket.conn.on('upgrade', (transport) => {
+    console.log({
+      event: 'TRANSPORT_UPGRADED',
+      socketId: socket.id,
+      transport: transport.name,
+      timestamp: new Date().toISOString()
+    });
+  });
+
+  // Handle ping
+  socket.conn.on('packet', (packet) => {
+    if (packet.type === 'ping') {
+      console.log({
+        event: 'PING_RECEIVED',
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
+    }
   });
 
   // Game event handlers
   socket.on('game:create', () => {
-    console.log({
-      event: 'GAME_CREATE_REQUESTED',
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-
-    // Check if socket is already in a room
-    const currentRooms = Array.from(socket.rooms);
-    if (currentRooms.length > 1) {
+    try {
       console.log({
-        event: 'SOCKET_ALREADY_IN_ROOM',
+        event: 'GAME_CREATE_REQUESTED',
         socketId: socket.id,
-        rooms: currentRooms,
         timestamp: new Date().toISOString()
       });
-      return;
+
+      // Check if socket is already in a room
+      const currentRooms = Array.from(socket.rooms);
+      if (currentRooms.length > 1) {
+        console.log({
+          event: 'SOCKET_ALREADY_IN_ROOM',
+          socketId: socket.id,
+          rooms: currentRooms,
+          timestamp: new Date().toISOString()
+        });
+        return;
+      }
+
+      const roomId = generateRoomId();
+      console.log({
+        event: 'ROOM_CREATED',
+        roomId,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
+
+      // Create game state
+      const gameState = {
+        players: [socket.id],
+        board: Array(9).fill(null),
+        currentPlayer: 'X',
+        winner: null,
+        winningLine: null
+      };
+
+      // Set game state before joining room
+      games.set(roomId, gameState);
+
+      // Join room and emit events in sequence
+      socket.join(roomId, (err) => {
+        if (err) {
+          console.error({
+            event: 'ROOM_JOIN_ERROR',
+            error: err.message,
+            roomId,
+            socketId: socket.id,
+            timestamp: new Date().toISOString()
+          });
+          return;
+        }
+
+        console.log({
+          event: 'SOCKET_JOINED_ROOM',
+          roomId,
+          socketId: socket.id,
+          timestamp: new Date().toISOString()
+        });
+
+        // Emit game created event with complete game state
+        socket.emit('game:created', {
+          roomId,
+          players: gameState.players,
+          board: gameState.board,
+          currentPlayer: gameState.currentPlayer
+        });
+
+        console.log({
+          event: 'GAME_CREATED_EVENT_SENT',
+          roomId,
+          socketId: socket.id,
+          timestamp: new Date().toISOString()
+        });
+      });
+    } catch (error) {
+      console.error({
+        event: 'GAME_CREATE_ERROR',
+        error: error.message,
+        stack: error.stack,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
     }
-
-    const roomId = generateRoomId();
-    console.log({
-      event: 'ROOM_CREATED',
-      roomId,
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-
-    // Create game state
-    const gameState = {
-      players: [socket.id],
-      board: Array(9).fill(null),
-      currentPlayer: 'X',
-      winner: null,
-      winningLine: null
-    };
-
-    // Set game state before joining room
-    games.set(roomId, gameState);
-
-    // Join room and emit events in sequence
-    socket.join(roomId);
-    console.log({
-      event: 'SOCKET_JOINED_ROOM',
-      roomId,
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
-
-    // Emit game created event with complete game state
-    socket.emit('game:created', {
-      roomId,
-      players: gameState.players,
-      board: gameState.board,
-      currentPlayer: gameState.currentPlayer
-    });
-
-    console.log({
-      event: 'GAME_CREATED_EVENT_SENT',
-      roomId,
-      socketId: socket.id,
-      timestamp: new Date().toISOString()
-    });
   });
 
   socket.on('game:join', (roomId) => {
