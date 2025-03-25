@@ -54,9 +54,14 @@ const io = new Server(server, {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
   },
-  transports: ['polling', 'websocket'],
+  transports: ['websocket'],
   pingTimeout: 60000,
-  pingInterval: 25000
+  pingInterval: 25000,
+  connectTimeout: 45000,
+  reconnection: true,
+  reconnectionAttempts: 5,
+  reconnectionDelay: 1000,
+  reconnectionDelayMax: 5000
 });
 
 // Root endpoint for basic health check
@@ -118,6 +123,18 @@ io.on('connection', (socket) => {
       timestamp: new Date().toISOString()
     });
 
+    // Check if socket is already in a room
+    const currentRooms = Array.from(socket.rooms);
+    if (currentRooms.length > 1) {
+      console.log({
+        event: 'SOCKET_ALREADY_IN_ROOM',
+        socketId: socket.id,
+        rooms: currentRooms,
+        timestamp: new Date().toISOString()
+      });
+      return;
+    }
+
     const roomId = generateRoomId();
     console.log({
       event: 'ROOM_CREATED',
@@ -126,14 +143,19 @@ io.on('connection', (socket) => {
       timestamp: new Date().toISOString()
     });
 
-    games.set(roomId, {
+    // Create game state
+    const gameState = {
       players: [socket.id],
       board: Array(9).fill(null),
       currentPlayer: 'X',
       winner: null,
       winningLine: null
-    });
+    };
 
+    // Set game state before joining room
+    games.set(roomId, gameState);
+
+    // Join room and emit events in sequence
     socket.join(roomId);
     console.log({
       event: 'SOCKET_JOINED_ROOM',
@@ -142,7 +164,14 @@ io.on('connection', (socket) => {
       timestamp: new Date().toISOString()
     });
 
-    socket.emit('game:created', { roomId, players: [socket.id] });
+    // Emit game created event with complete game state
+    socket.emit('game:created', {
+      roomId,
+      players: gameState.players,
+      board: gameState.board,
+      currentPlayer: gameState.currentPlayer
+    });
+
     console.log({
       event: 'GAME_CREATED_EVENT_SENT',
       roomId,
