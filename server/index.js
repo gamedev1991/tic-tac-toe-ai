@@ -169,6 +169,25 @@ io.on('connection', (socket) => {
       });
     }
   });
+
+  // Handle game reset
+  socket.on('resetGame', (roomId) => {
+    const game = games.get(roomId);
+    if (game) {
+      // Reset game state
+      game.board = Array(9).fill(null);
+      game.currentPlayer = 'X';
+      game.winner = null;
+      game.winningLine = null;
+      
+      // Notify all players in the room
+      io.to(roomId).emit('gameReset', {
+        board: game.board,
+        currentPlayer: game.currentPlayer,
+        players: game.players
+      });
+    }
+  });
 });
 
 // Start server
