@@ -188,6 +188,29 @@ io.on('connection', (socket) => {
       });
     }
   });
+
+  // Handle disconnection
+  socket.on('disconnect', () => {
+    const roomId = Array.from(socket.rooms).find(room => room !== socket.id);
+    if (roomId) {
+      const game = games.get(roomId);
+      if (game) {
+        // Remove the disconnected player from the game
+        game.players = game.players.filter(player => player.id !== socket.id);
+        
+        // If there are no players left, delete the game
+        if (game.players.length === 0) {
+          games.delete(roomId);
+        } else {
+          // Notify the remaining player that their opponent has left
+          io.to(roomId).emit('opponentLeft', {
+            message: 'Your opponent has left the game',
+            players: game.players
+          });
+        }
+      }
+    }
+  });
 });
 
 // Start server
