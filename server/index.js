@@ -54,14 +54,16 @@ const io = new Server(server, {
     credentials: true,
     allowedHeaders: ['Content-Type', 'Authorization']
   },
-  transports: ['websocket'],
+  transports: ['websocket', 'polling'],
   pingTimeout: 60000,
   pingInterval: 25000,
   connectTimeout: 45000,
   reconnection: true,
   reconnectionAttempts: 5,
   reconnectionDelay: 1000,
-  reconnectionDelayMax: 5000
+  reconnectionDelayMax: 5000,
+  allowEIO3: true,
+  allowUpgrades: true
 });
 
 // Root endpoint for basic health check
