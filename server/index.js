@@ -103,11 +103,29 @@ const checkWinner = (board) => {
 // Socket connection handling
 io.on('connection', (socket) => {
   activeConnections++;
-  console.log(`Client connected: ${socket.id} (Total: ${activeConnections})`);
+  console.log({
+    event: 'CLIENT_CONNECTED',
+    socketId: socket.id,
+    totalConnections: activeConnections,
+    timestamp: new Date().toISOString()
+  });
 
   // Game event handlers
   socket.on('game:create', () => {
+    console.log({
+      event: 'GAME_CREATE_REQUESTED',
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
+
     const roomId = generateRoomId();
+    console.log({
+      event: 'ROOM_CREATED',
+      roomId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
+
     games.set(roomId, {
       players: [socket.id],
       board: Array(9).fill(null),
@@ -115,27 +133,76 @@ io.on('connection', (socket) => {
       winner: null,
       winningLine: null
     });
+
     socket.join(roomId);
+    console.log({
+      event: 'SOCKET_JOINED_ROOM',
+      roomId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
+
     socket.emit('game:created', { roomId, players: [socket.id] });
+    console.log({
+      event: 'GAME_CREATED_EVENT_SENT',
+      roomId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
   });
 
   socket.on('game:join', (roomId) => {
+    console.log({
+      event: 'GAME_JOIN_REQUESTED',
+      roomId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
+
     const game = games.get(roomId);
     if (!game) {
+      console.log({
+        event: 'GAME_NOT_FOUND',
+        roomId,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
       socket.emit('error', { message: 'Game not found' });
       return;
     }
     if (game.players.length >= 2) {
+      console.log({
+        event: 'GAME_FULL',
+        roomId,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
       socket.emit('error', { message: 'Game is full' });
       return;
     }
+
     game.players.push(socket.id);
     socket.join(roomId);
+    console.log({
+      event: 'PLAYER_JOINED_GAME',
+      roomId,
+      socketId: socket.id,
+      players: game.players,
+      timestamp: new Date().toISOString()
+    });
+
     socket.emit('game:joined', { roomId, players: game.players });
     io.to(roomId).emit('gameStarted', {
       board: game.board,
       currentPlayer: game.currentPlayer,
       players: game.players
+    });
+    console.log({
+      event: 'GAME_STARTED_EVENT_SENT',
+      roomId,
+      socketId: socket.id,
+      players: game.players,
+      timestamp: new Date().toISOString()
     });
   });
 
@@ -173,6 +240,13 @@ io.on('connection', (socket) => {
 
   // Handle game reset
   socket.on('resetGame', (roomId) => {
+    console.log({
+      event: 'GAME_RESET_REQUESTED',
+      roomId,
+      socketId: socket.id,
+      timestamp: new Date().toISOString()
+    });
+
     const game = games.get(roomId);
     if (game) {
       // Reset game state
@@ -187,13 +261,24 @@ io.on('connection', (socket) => {
         currentPlayer: game.currentPlayer,
         players: game.players
       });
+      console.log({
+        event: 'GAME_RESET_EVENT_SENT',
+        roomId,
+        socketId: socket.id,
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
   // Consolidated disconnect handler
   socket.on('disconnect', () => {
     activeConnections--;
-    console.log(`Client disconnected: ${socket.id} (Total: ${activeConnections})`);
+    console.log({
+      event: 'CLIENT_DISCONNECTED',
+      socketId: socket.id,
+      totalConnections: activeConnections,
+      timestamp: new Date().toISOString()
+    });
 
     const roomId = Array.from(socket.rooms).find(room => room !== socket.id);
     if (roomId) {
@@ -205,11 +290,23 @@ io.on('connection', (socket) => {
         // If there are no players left, delete the game
         if (game.players.length === 0) {
           games.delete(roomId);
+          console.log({
+            event: 'GAME_DELETED',
+            roomId,
+            reason: 'No players left',
+            timestamp: new Date().toISOString()
+          });
         } else {
           // Notify the remaining player that their opponent has left
           io.to(roomId).emit('opponentLeft', {
             message: 'Your opponent has left the game',
             players: game.players
+          });
+          console.log({
+            event: 'OPPONENT_LEFT_NOTIFICATION_SENT',
+            roomId,
+            remainingPlayers: game.players,
+            timestamp: new Date().toISOString()
           });
         }
       }
