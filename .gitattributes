@@ -1,0 +1,33 @@
+# Normalize line endings: LF in the repository and in the working tree.
+# The server is deployed to Linux (Railway), so LF everywhere avoids the
+# phantom "modified" status Windows checkouts get from core.autocrlf=true.
+* text=auto eol=lf
+
+# Windows shims genuinely need CRLF to run.
+*.cmd text eol=crlf
+*.bat text eol=crlf
+
+# Vendored dependencies: keep them out of GitHub's language stats, and leave
+# line-ending handling exactly as it was before this file existed (`!text`
+# makes the attribute unspecified rather than forcing it off). Anything
+# stricter rewrites npm's own .cmd shims and generated builds.
+server/node_modules/** !text !eol linguist-vendored
+
+# Lockfiles: keep them out of diffs; they are generated, not reviewed.
+package-lock.json -diff linguist-generated
+server/package-lock.json -diff linguist-generated
+
+# Binary assets — never convert line endings or attempt a text diff.
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.webp binary
+*.woff binary
+*.woff2 binary
+*.ttf binary
+*.eot binary
+*.pdf binary
+*.gz binary
+*.zip binary
