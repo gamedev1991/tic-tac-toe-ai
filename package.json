@@ -12,7 +12,7 @@
     "test:coverage": "jest --coverage"
   },
   "dependencies": {
-    "next": "latest",
+    "next": "15.5.8",
     "react": "latest",
     "react-confetti": "^6.4.0",
     "react-dom": "latest",
